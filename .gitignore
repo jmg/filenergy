@@ -1,0 +1,10 @@
+*.pyc
+*.sqlite
+*.orig
+*.sqlite
+*.pydevproject
+*.project
+.idea
+.DS_Store
+
+files/*

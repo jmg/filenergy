@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block js %}
+<script type="text/javascript">
+function downloadFileNow(h) {
+
+    location.href = "/file/downloadnow/?h=" + h;
+}
+</script>
+{% endblock %}
+
+{% block header %}Download{% endblock %}
+
+{% block content %}
+
+  <div class="row well file-list">
+
+    <div><span>File name:</span> {{file.name}}</div>
+    <div><span>File size:</span> {{file_size}} Kb</div>
+    <div><span>Uploaded on:</span> {{file.created_at}}</div>
+    <div><span>Uploaded by:</span> {{file.user.username}}</div>
+
+    <div class="download-btn"><button onclick="downloadFileNow('{{file.url}}')" class="btn btn-primary">Download Now!</button></div>
+
+  </div>
+
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block header %}Login{% endblock %}
+
+{% block content %}
+
+    <article id="login">
+        {% if form.errors %}
+        <p>Your username and password didn't match. Please try again.</p>
+        {% endif %}
+
+        <hgroup>
+            <h1></h1>
+        </hgroup>
+        <form action="/accounts/login/" method="post" id="login-form">
+            {% csrf_token %}
+            <div class="group">
+                <div>
+                    <label for="signup-email">Email address:</label>
+                    <input type="text" name="username" id="signup-email" class="required email">
+                </div>
+                <div>
+                    <label for="signup-password">Password:</label>
+                    <input type="password" name="password" id="signup-password" class="required">
+                </div>
+            </div>
+            <div class="mod">
+                <input type="submit" class="btn btn-primary" value="Login"/>
+            </div>
+        </form>
+    </article>
+
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "registration/registration_base.html" %}
+{% block title %}{% if account %}Activation completed{% else %}There has been an activation problem{% endif %}{% endblock %}
+{% block content %}
+
+<div class="white">
+{% if account %}
+Thanks {{ account }}, activation complete!  You may now <a href='/#login'>login</a> using your username and password.
+{% else %}
+Oops &ndash; it seems that your activation key is invalid.  Please check the url again.
+{% endif %}
+</div>
+{% endblock %}
+
