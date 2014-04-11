@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block header %}Search Files{% endblock %}
+
+{% block js %}
+<script type="text/javascript">
+
+function searchFiles(form) {
+
+    $.post("/file/search/", $(form).serialize(), function(response) {
+
+        var results = $("#results");
+
+        results.html(response);
+        results.hide();
+        results.slideDown();
+    });
+}
+
+</script>
+{% endblock %}
+
+{% block content %}
+
+  <div class="row">
+
+    <form class="form-horizontal well" onsubmit="searchFiles(this); return false;">
+        <fieldset>
+          
+          <div class="control-group">
+            <label class="control-label" for="search">File Name:</label>
+            <div class="controls">
+              <input class="input-file input-xlarge" id="search" type="text" name="name">
+              <button type="submit" class="btn btn-primary">Search</button>            
+            </div>
+
+          </div>
+                            
+        </fieldset>
+      </form>
+
+      <div id="results" class="well hide"></div>
+
+  </div>  
+
+{% endblock %}
