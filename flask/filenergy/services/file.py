@@ -1,10 +1,11 @@
 from base import BaseService
 from filenergy.models import File
+from filenergy import db
 
 import os
 import hashlib
 
-UPLOAD_DIR = "uploaded_files"
+UPLOAD_DIR = "files"
 
 
 class FileService(BaseService):
@@ -17,25 +18,19 @@ class FileService(BaseService):
             os.mkdir(UPLOAD_DIR)
 
         file_obj = data.get("file")
-        file_content = file_obj.read()
-        file_name = file_obj.name
+        file_path = os.path.join(UPLOAD_DIR, file_obj.filename)
+        file_obj.save(file_path)
 
-        file_path = os.path.join(UPLOAD_DIR, file_name)
-
-        with open(file_path, "w") as fd:
-
-            fd.write(file_content)
-            fd.close()
-
-        self.save(path=file_path, name=file_name, user=user)
+        self.save(path=file_path, name=file_obj.filename, user=user)
 
     def save(self, **params):
 
-        db_file = self.new(**params)
-        db_file.save()
+        db_file = self.entity(**params)
+        db.session.add(db_file)
+        db.session.commit()
 
-        db_file.url = hashlib.sha512(str(db_file.id)).hexdigest()
-        db_file.save()
+        #db_file.url = hashlib.sha512(str(db_file.id)).hexdigest()
+        #db_file.save()
 
     def delete(self, db_file):
 

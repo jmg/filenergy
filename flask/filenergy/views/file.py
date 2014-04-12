@@ -1,5 +1,5 @@
 from filenergy import app, login_manager
-from flask import render_template, request, g
+from flask import render_template, request, g, redirect
 from filenergy.models import File
 
 from filenergy.services.file import FileService
@@ -9,7 +9,7 @@ from filenergy.services.file import FileService
 def list():
 
     context = {}
-    context["files"] = File.query.filter_by(user=g.user)
+    context["files"] = FileService().filter_by(user=g.user)
 
     return render_template("file/list.html", **context)
 
@@ -23,9 +23,9 @@ def upload():
 @app.route("/file/upload/", methods=['POST'])
 def upload_post():
 
-    FileService().save_file(self.request.FILES, self.request.user)
+    FileService().save_file(request.files, g.user)
 
-    return self.redirect("/file/")
+    return redirect("/file/list/")
 
 
 @app.route("/file/download/", methods=['POST'])
@@ -51,9 +51,9 @@ def search():
 
     context = {}
     file_name = request.form.get("name")
-    context["files"] = FileService().filter(name__contains=file_name)
+    context["files"] = FileService().filter(File.name.like("%{0}%".format(file_name))).all()
 
-    return render_template("file/search.html", context)
+    return render_template("file/search.html", **context)
 
 
 @app.route("/file/delete/")
@@ -65,11 +65,3 @@ def delete():
         return "fail"
 
     return "ok"
-
-
-@app.route('/upload', methods=['GET', 'POST'])
-def upload_file():
-
-    if request.method == 'POST':
-        f = request.files['the_file']
-        f.save('/var/www/uploads/uploaded_file.txt')

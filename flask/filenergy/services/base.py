@@ -1,7 +1,7 @@
 
 class BaseService(object):
 
-    _repo = property(fget=lambda self: self.entity.objects)
+    _repo = property(fget=lambda self: self.entity.query)
     _page_size = 10
 
     default_query_params = {}
@@ -161,7 +161,7 @@ class BaseService(object):
 
         logical_delete = kwargs.pop("logical", False)
 
-        objs = self.filter(*args, **kwargs)
+        objs = self.filter_by(*args, **kwargs)
 
         if not objs:
             return False
@@ -175,57 +175,9 @@ class BaseService(object):
 
         return True
 
-    def get_formated_sum(self, value):
-
-        if value is None:
-            value = 0
-
-        return "%.2f" % value
-
-    def _render_row_value(self, row_data, render):
-
-        if isinstance(render, basestring):
-            if isinstance(row_data, dict):
-                return unicode(row_data[render])
-            else:
-                return unicode(getattr(row_data, render))
-        else:
-            return unicode(render(row_data))
-
     def get_params(self, data, params):
 
         dict_params = {}
         for param in params:
             dict_params[param] = data.get(param)
         return dict_params
-
-    def convert_to_bool(self, data, params):
-
-        convert_to_bool(data, params)
-
-    def to_bool(self, param):
-
-        return bool(int(param))
-
-    def get_action_params(self, request, params_names, prefix="", bar_action=True):
-
-        complete_names = ["%s%s" % (prefix, param) for param in params_names]
-
-        params = self.get_params(request.POST, complete_names)
-
-        if bar_action:
-            boolean_params = ["%s%s" % (prefix, param) for param in ["is_main_action", "is_side_action"]]
-            self.convert_to_bool(params, boolean_params)
-
-        final_params = {}
-        for key, value in params.iteritems():
-            new_key = key.replace(prefix, "")
-            final_params[new_key] = value
-
-        return final_params
-
-    def check_nullables(self, data, params):
-
-        for param in params:
-            if not data.get(param):
-                data[param] = None
