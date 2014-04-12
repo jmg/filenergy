@@ -34,11 +34,11 @@
 
           </ul>
           <ul class="nav pull-right" id="main-menu-right">
-            {% if 1 %}
+            {% if not g.user.is_authenticated() %}
             <li><a href="/user/login/">Login</a></li>
             <li><a href="/user/register/">Signup</i></a></li>
             {% else %}
-            <li><a href="/file/list/">Welcome {{request.user.username}}</a></li>
+            <li><a href="/file/list/">Welcome {{g.user.username}}</a></li>
             <li><a href="/user/logout/">Logout</a></li>
             {% endif %}
           </ul>

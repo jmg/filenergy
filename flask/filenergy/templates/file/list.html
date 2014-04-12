@@ -8,12 +8,12 @@ function deleteFile(id) {
     var response = confirm("Are you sure you want to delete it?");
 
     if (response == true) {
-     
+
         $.post("/file/delete/", {id: id}, function() {
 
             var file = $("#file-" + id);
             file.fadeOut(function() {
-                file.remove();  
+                file.remove();
             })
         });
     }
@@ -33,7 +33,7 @@ function downloadFile(h) {
 
   <div class="row well">
 
-    {% include "file/_files.html" with is_mine=1 %}
+    {% include "file/_files.html" %}
 
   </div>
 

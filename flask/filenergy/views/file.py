@@ -1,5 +1,6 @@
 from filenergy import app, login_manager
-from flask import render_template, request
+from flask import render_template, request, g
+from filenergy.models import File
 
 from filenergy.services.file import FileService
 
@@ -8,9 +9,9 @@ from filenergy.services.file import FileService
 def list():
 
     context = {}
-    context["files"] = FileService().filter(user=request.user)
+    context["files"] = File.query.filter_by(user=g.user)
 
-    return render_template("file/mine.html", context)
+    return render_template("file/list.html", **context)
 
 
 @app.route("/file/upload/", methods=['GET'])
