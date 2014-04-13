@@ -1,1 +1,0 @@
-UPLOAD_DIR = "files"

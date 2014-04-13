@@ -1,10 +1,10 @@
-#!/usr/bin/env python
-import os
-import sys
+from flask.ext.script import Manager
+from flask.ext.migrate import Migrate, MigrateCommand
+from filenergy import app, db
 
-if __name__ == "__main__":
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "filenergy.settings")
+migrate = Migrate(app, db)
 
-    from django.core.management import execute_from_command_line
+manager = Manager(app)
+manager.add_command('db', MigrateCommand)
 
-    execute_from_command_line(sys.argv)
+manager.run()

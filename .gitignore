@@ -5,6 +5,7 @@
 *.pydevproject
 *.project
 .idea
+flask/files
 .DS_Store
 
 files/*
