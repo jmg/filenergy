@@ -1,7 +1,5 @@
-from filenergy import app, db, login_manager
+from filenergy import app, db
 from flask import render_template, request, url_for, redirect, flash
-from flask.ext.login import login_user, logout_user, current_user, login_required
-from sqlalchemy.sql import exists
 
 from filenergy.services.user import UserService
 
@@ -18,12 +16,11 @@ def login_post():
     email = request.form['email'].strip()
     password = request.form['password'].strip()
 
-    user = UserService().get_one(email=email)
-    if user is None or not user.check_password(password):
-        flash("Email or password incorrect.", 'error')
+    error = UserService().login(email, password)
+    if error:
+        flash(error, 'error')
         return redirect(url_for('login'))
 
-    login_user(user)
     return redirect(request.form.get('next') or "/")
 
 
@@ -39,22 +36,11 @@ def register_post():
     email = request.form['email'].strip()
     password = request.form['password'].strip()
     password_again = request.form['password_again'].strip()
-    username = email
 
-    if password != password_again:
-        flash("Passwords don't match.", 'error')
+    error = UserService().register(email, password, password_again)
+    if error:
+        flash(error, 'error')
         return redirect(url_for('register'))
-
-    if db.session.query(exists().where(UserService.entity.email==email)).scalar():
-        flash("An user with that email already exists.", 'error')
-        return redirect(url_for('register'))
-
-    user = UserService().new(username=username, email=email)
-    user.set_password(password)
-
-    UserService().save(user)
-
-    login_user(user)
 
     return redirect("/")
 
@@ -62,5 +48,5 @@ def register_post():
 @app.route("/user/logout/")
 def logout():
 
-    logout_user()
+    UserService().logout()
     return redirect(url_for('index'))
