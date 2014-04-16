@@ -25,7 +25,7 @@ def upload():
 @app.route("/file/upload/", methods=['POST'])
 def upload_post():
 
-    FileService().save_file(request.files, g.user)
+    FileService().save_file(request, g.user)
     return redirect(url_for("list"))
 
 

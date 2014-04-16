@@ -10,16 +10,18 @@ class FileService(BaseService):
 
     entity = File
 
-    def save_file(self, data, user):
+    def save_file(self, request, user):
 
         if not os.path.exists(settings.UPLOAD_DIR):
             os.mkdir(settings.UPLOAD_DIR)
 
-        file_obj = data.get("file")
+        file_obj = request.files.get("file")
         file_path = os.path.join(settings.UPLOAD_DIR, file_obj.filename)
         file_obj.save(file_path)
 
-        self.save_upload(path=file_path, name=file_obj.filename, user=user)
+        is_public = bool(request.form.get("is_public", False))
+
+        self.save_upload(path=file_path, name=file_obj.filename, user=user, is_public=is_public)
 
     def save_upload(self, **params):
 
@@ -61,4 +63,12 @@ class FileService(BaseService):
 
     def search(self, user, file_name):
 
-        return self.filter(((File.is_public==True) | (File.user==user)) & (File.name.like("%{0}%".format(file_name)))).all()
+        like_query = (File.name.like("%{0}%".format(file_name)))
+        is_public_query = (File.is_public==True)
+
+        if user.is_authenticated():
+            query = (is_public_query | (File.user==user)) & like_query
+        else:
+            query = is_public_query & like_query
+
+        return self.filter(query).all()

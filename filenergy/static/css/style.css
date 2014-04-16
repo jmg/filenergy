@@ -37,10 +37,25 @@ div.actions img {
     font-weight: bold;
 }
 
+.file-list input[type="checkbox"] {
+    position: relative;
+    top: -3px;
+    margin-left: 5px;
+}
+
 .download-btn {
     margin-top: 20px;
 }
 
 .error {
     color: red;
+}
+
+.controls {
+    margin-bottom: 5px;
+}
+
+.controls input[type="checkbox"] {
+    position: relative;
+    top: 3px;
 }

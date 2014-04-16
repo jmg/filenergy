@@ -26,7 +26,7 @@ function makePublic(id, checkbox) {
     <div><span>File size:</span> {{file_size}} Kb</div>
     <div><span>Uploaded on:</span> {{file.created_at.strftime("%d-%m-%Y %H:%M")}}</div>
     <div><span>Uploaded by:</span> {{file.user.username}}</div>
-    <div><span>Is Public:</span> <input onchange="makePublic({{file.id}}, this)" type="checkbox" {% if file.is_public %}checked="checked"{% endif %}/></div>
+    <div><span>Is Public:</span> <input {% if file.user == g.user %}onchange="makePublic({{file.id}}, this)"{% else %}disabled="disabled"{% endif %} type="checkbox" {% if file.is_public %}checked="checked"{% endif %}/></div>
 
     <div class="download-btn"><button onclick="downloadFileNow('{{file.url}}')" class="btn btn-primary">Download Now!</button></div>
 

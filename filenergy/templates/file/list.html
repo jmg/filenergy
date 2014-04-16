@@ -33,17 +33,7 @@ function downloadFile(h) {
 
   <div class="row well">
 
-    {% for file in files %}
-    <li id="file-{{file.id}}">
-        <a href="/file/download/?h={{file.url}}">{{file.name}}</a>
-
-        <div class="actions">
-            <img title="download" src="/static/img/download.png" onclick="downloadFile('{{file.url}}')"/>
-            <img title="delete" src="/static/img/delete.png" onclick="deleteFile('{{file.id}}')"/>
-        </div>
-    </li>
-    {% endfor %}
-    </ul>
+    {% include "file/_files.html" %}
 
   </div>
 
