@@ -1,7 +1,6 @@
 from filenergy import app, login_manager
 from flask import render_template, request, g, redirect, url_for, flash, make_response
 from flask.ext.login import login_required
-from filenergy.models import File
 
 from filenergy.services.file import FileService
 
@@ -27,7 +26,6 @@ def upload():
 def upload_post():
 
     FileService().save_file(request.files, g.user)
-
     return redirect(url_for("list"))
 
 
@@ -57,7 +55,7 @@ def search():
 
     context = {}
     file_name = request.form.get("name")
-    context["files"] = FileService().filter(File.name.like("%{0}%".format(file_name))).all()
+    context["files"] = FileService().search(g.user, file_name)
 
     return render_template("file/search.html", **context)
 
@@ -69,5 +67,16 @@ def delete():
 
     if not FileService().delete(db_file):
         return "fail"
+
+    return "ok"
+
+
+@app.route("/file/make_public/", methods=["POST"])
+def make_public():
+
+    db_file = FileService().get_one(id=request.form.get("id"), user=g.user)
+    db_file.is_public = request.form.get("is_public") == str(True).lower()
+
+    FileService().save(db_file)
 
     return "ok"

@@ -1,11 +1,9 @@
 from base import BaseService
 from filenergy.models import File
-from filenergy import db
+from filenergy import db, settings
 
 import os
 import hashlib
-
-UPLOAD_DIR = "files"
 
 
 class FileService(BaseService):
@@ -14,18 +12,18 @@ class FileService(BaseService):
 
     def save_file(self, data, user):
 
-        if not os.path.exists(UPLOAD_DIR):
-            os.mkdir(UPLOAD_DIR)
+        if not os.path.exists(settings.UPLOAD_DIR):
+            os.mkdir(settings.UPLOAD_DIR)
 
         file_obj = data.get("file")
-        file_path = os.path.join(UPLOAD_DIR, file_obj.filename)
+        file_path = os.path.join(settings.UPLOAD_DIR, file_obj.filename)
         file_obj.save(file_path)
 
-        self.save(path=file_path, name=file_obj.filename, user=user)
+        self.save_upload(path=file_path, name=file_obj.filename, user=user)
 
-    def save(self, **params):
+    def save_upload(self, **params):
 
-        db_file = self.entity(**params)
+        db_file = self.new(**params)
         db.session.add(db_file)
         db.session.commit()
 
@@ -60,3 +58,7 @@ class FileService(BaseService):
             fd.close()
 
         return file_content
+
+    def search(self, user, file_name):
+
+        return self.filter(((File.is_public==True) | (File.user==user)) & (File.name.like("%{0}%".format(file_name)))).all()

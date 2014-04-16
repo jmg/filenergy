@@ -5,3 +5,5 @@ config = {
 }
 
 login_view = '/user/login/'
+
+UPLOAD_DIR = "files"

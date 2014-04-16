@@ -6,6 +6,13 @@ function downloadFileNow(h) {
 
     location.href = "/file/downloadnow/?h=" + h;
 }
+
+function makePublic(id, checkbox) {
+
+    $.post("/file/make_public/", {id: id, is_public: checkbox.checked}, function() {
+
+    });
+}
 </script>
 {% endblock %}
 
@@ -17,8 +24,9 @@ function downloadFileNow(h) {
 
     <div><span>File name:</span> {{file.name}}</div>
     <div><span>File size:</span> {{file_size}} Kb</div>
-    <div><span>Uploaded on:</span> {{file.created_at}}</div>
+    <div><span>Uploaded on:</span> {{file.created_at.strftime("%d-%m-%Y %H:%M")}}</div>
     <div><span>Uploaded by:</span> {{file.user.username}}</div>
+    <div><span>Is Public:</span> <input onchange="makePublic({{file.id}}, this)" type="checkbox" {% if file.is_public %}checked="checked"{% endif %}/></div>
 
     <div class="download-btn"><button onclick="downloadFileNow('{{file.url}}')" class="btn btn-primary">Download Now!</button></div>
 

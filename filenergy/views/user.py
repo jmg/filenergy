@@ -1,6 +1,7 @@
 from filenergy import app, db, login_manager
 from flask import render_template, request, url_for, redirect, flash
 from flask.ext.login import login_user, logout_user, current_user, login_required
+from sqlalchemy.sql import exists
 
 from filenergy.models import User
 
@@ -14,14 +15,15 @@ def login():
 @app.route("/user/login/", methods=["POST"])
 def login_post():
 
-    email = request.form['email']
-    password = request.form['password']
-    registered_user = User.query.filter_by(email=email, password=password).first()
-    if registered_user is None:
+    email = request.form['email'].strip()
+    password = request.form['password'].strip()
+
+    user = User.query.filter_by(email=email).first()
+    if user is None or not user.check_password(password):
         flash("Email or password incorrect.", 'error')
         return redirect(url_for('login'))
 
-    login_user(registered_user)
+    login_user(user)
     return redirect(request.form.get('next') or "/")
 
 
@@ -34,11 +36,28 @@ def register():
 @app.route("/user/register/", methods=["POST"])
 def register_post():
 
-    user = User(username=request.form['email'], email=request.form['email'], password=request.form['password'])
+    email = request.form['email'].strip()
+    password = request.form['password'].strip()
+    password_again = request.form['password_again'].strip()
+    username = email
+
+    if password != password_again:
+        flash("Passwords don't match.", 'error')
+        return redirect(url_for('register'))
+
+    if db.session.query(exists().where(User.email==email)).scalar():
+        flash("An user with that email already exists.", 'error')
+        return redirect(url_for('register'))
+
+    user = User(username=username, email=email)
+    user.set_password(password)
+
     db.session.add(user)
     db.session.commit()
 
-    return redirect(url_for('login'))
+    login_user(user)
+
+    return redirect("/")
 
 
 @app.route("/user/logout/")
