@@ -17,6 +17,11 @@ function searchFiles(form) {
     });
 }
 
+function downloadFile(h) {
+
+    location.href = "/file/download/?h=" + h;
+}
+
 </script>
 {% endblock %}
 
@@ -26,21 +31,21 @@ function searchFiles(form) {
 
     <form class="form-horizontal well" onsubmit="searchFiles(this); return false;">
         <fieldset>
-          
+
           <div class="control-group">
             <label class="control-label" for="search">File Name:</label>
             <div class="controls">
               <input class="input-file input-xlarge" id="search" type="text" name="name">
-              <button type="submit" class="btn btn-primary">Search</button>            
+              <button type="submit" class="btn btn-primary">Search</button>
             </div>
 
           </div>
-                            
+
         </fieldset>
       </form>
 
       <div id="results" class="well hide"></div>
 
-  </div>  
+  </div>
 
 {% endblock %}

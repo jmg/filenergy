@@ -1,3 +1,4 @@
+import simplejson as json
 from base import BaseService
 from filenergy.models import File
 from filenergy import db, settings
@@ -15,13 +16,25 @@ class FileService(BaseService):
         if not os.path.exists(settings.UPLOAD_DIR):
             os.mkdir(settings.UPLOAD_DIR)
 
-        file_obj = request.files.get("file")
+        file_obj = request.files.get("files[]")
         file_path = os.path.join(settings.UPLOAD_DIR, file_obj.filename)
         file_obj.save(file_path)
 
         is_public = bool(request.form.get("is_public", False))
 
-        self.save_upload(path=file_path, name=file_obj.filename, user=user, is_public=is_public)
+        db_file = self.save_upload(path=file_path, name=file_obj.filename, user=user, is_public=is_public)
+        return self.return_response(db_file)
+
+    def return_response(self, db_file):
+
+        result = []
+        result.append({
+            "name": db_file.name,
+            "size": self.get_size(db_file),
+            "url": db_file.url,
+        })
+        response_data = json.dumps(result)
+        return response_data
 
     def save_upload(self, **params):
 
@@ -32,6 +45,8 @@ class FileService(BaseService):
         db_file.url = hashlib.sha512(str(db_file.id)).hexdigest()
         db.session.add(db_file)
         db.session.commit()
+
+        return db_file
 
     def delete(self, db_file):
 
