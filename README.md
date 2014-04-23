@@ -1,7 +1,7 @@
 Filenergy
 =========
 
-Filenergy is a file sharing sharing tool written in python using the flask micro-framework and jquery.upload for the file uploader interface.
+Filenergy is a file sharing sharing tool written in python using the [flask](http://flask.pocoo.org/) micro-framework and [jQuery-File-Upload](http://blueimp.github.io/jQuery-File-Upload/) for the file uploader interface.
 
 ###Live Demo
 
