@@ -23,6 +23,8 @@ class User(BaseModel):
     password = db.Column(db.String(255), unique=False)
     email = db.Column(db.String(255), unique=True)
 
+    is_superuser = db.Column(db.Boolean(), default=False)
+
     def is_authenticated(self):
         return True
 
@@ -40,6 +42,10 @@ class User(BaseModel):
 
     def check_password(self, password):
         return check_password_hash(self.password, password)
+
+    def __str__(self):
+
+        return self.email
 
 
 class File(BaseModel):

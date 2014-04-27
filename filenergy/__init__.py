@@ -1,6 +1,7 @@
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 from flask.ext.login import LoginManager
+
 import settings
 
 app = Flask(__name__)
@@ -18,3 +19,4 @@ login_manager.login_view = settings.login_view
 import middleware
 import models
 import views
+import admin
