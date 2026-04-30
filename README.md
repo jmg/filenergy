@@ -97,9 +97,40 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 - **Dockerfile** (Python 3.11 slim + gunicorn, non-root user, healthcheck).
 - **docker-compose.yml** with a persistent SQLite volume.
 
+### Ingestion
+
+- **URL ingestion** — paste a URL on the upload page; we fetch, strip
+  HTML, extract title/text, and index it like any other file. Caps page
+  size at 10 MB and rejects non-text content types.
+- **OCR fallback** — when local extractors return nothing (scanned PDFs,
+  screenshots), we send the file to Claude as a `document` or `image`
+  block and ask it to transcribe verbatim. Image MIME types
+  (`png`/`jpg`/`gif`/`webp`) are now first-class indexable as a result.
+
+### First-run experience
+
+- **Onboarding wizard** — new users land on `/onboarding/` after
+  registration: name your workspace, optionally seed three sample files
+  so the demo is non-empty.
+
+### Activity dashboard
+
+- **`/dashboard/`** (owner/admin only) — stat cards (files, indexed,
+  collections, conversations, messages, members, API keys, plan), a
+  30-day uploads timeseries, a 30-day asks timeseries, and the top-cited
+  files. Plain inline SVG bars — no chart libraries.
+
+### Migrations
+
+- **Alembic via Flask-Migrate** — `flask db upgrade` applies pending
+  migrations in production. Local dev / tests still use
+  `db.create_all()` so the suite is self-contained. Set
+  `FILENERGY_SKIP_CREATE_ALL=1` when running `flask db migrate` against
+  an empty schema.
+
 ### Tests
 
-**419 tests, 97.5% coverage** (pytest + pytest-cov).
+**460 tests, 97.7% coverage** (pytest + pytest-cov).
 
 ## Where we sit vs the competition
 
@@ -110,8 +141,11 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 | Collections / per-doc chat    | ✅        | ✅         | ✅     | ❌       | ❌    |
 | Streaming RAG with citations  | ✅        | ✅         | ✅     | ✅       | ✅    |
 | Auto-summary + suggested Qs   | ✅        | ✅         | ✅     | ❌       | ❌    |
+| OCR for scanned PDFs / images | ✅        | ✅         | ✅     | ❌       | ❌    |
+| URL ingestion                 | ✅        | ✅         | ❌     | ❌       | ❌    |
 | Outbound webhooks             | ✅        | ❌         | ❌     | ✅       | ✅    |
 | Audit log UI + CSV export     | ✅        | ❌         | ❌     | ❌       | ✅    |
+| Activity dashboard            | ✅        | ❌         | ❌     | ✅       | ✅    |
 | Stripe-billed plan tiers      | ✅        | n/a        | ✅     | ✅       | ✅    |
 | Public REST API + OpenAPI     | ✅        | ❌         | ✅     | ✅       | ✅    |
 | Public share links with TTL   | ✅        | ❌         | ❌     | ❌       | ❌    |
@@ -119,6 +153,8 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 | SSO (Google OIDC)             | ✅        | ✅         | ✅     | ✅       | ✅    |
 | Self-serve account deletion   | ✅        | ✅         | ❌     | ❌       | ❌    |
 | Prometheus `/metrics`         | ✅        | ❌         | ❌     | ❌       | ✅    |
+| Onboarding wizard             | ✅        | ✅         | ✅     | ❌       | ✅    |
+| Alembic migrations            | ✅        | n/a        | n/a    | n/a      | n/a   |
 | SAML SSO                      | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
 | GDrive / Slack connectors     | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
 
@@ -322,11 +358,9 @@ TLS terminated.
 
 - **SAML SSO** (in addition to Google OIDC) for the Team tier.
 - **Connectors**: pull from Google Drive, Notion, Dropbox, Slack.
-- **OCR for scanned PDFs** via Tesseract / DocumentAI.
 - **Browser extension** to clip a webpage into a workspace.
 - **Postgres + pgvector** as the production target (today's SQLite + JSON
   embeddings tops out around ~10K chunks per workspace).
-- **Alembic migrations** so production deploys can upgrade schema cleanly.
 - **RQ / Celery** indexing queue for tenants who upload thousands of
   files at once.
 - **PDF / DOCX export** of conversations (we already do Markdown).

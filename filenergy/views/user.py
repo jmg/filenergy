@@ -100,7 +100,7 @@ def register_post():
     user = user_svc.get_one(email=email)
     events.log_event(events.USER_REGISTERED, user=user)
 
-    return redirect(url_for("index.index"))
+    return redirect(url_for("onboarding.index"))
 
 
 @user_bp.route("/logout/")

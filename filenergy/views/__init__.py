@@ -6,10 +6,12 @@ from filenergy.views.ask import ask_bp
 from filenergy.views.audit import audit_bp
 from filenergy.views.billing import billing_bp
 from filenergy.views.collections import collections_bp
+from filenergy.views.dashboard import dashboard_bp
 from filenergy.views.docs import docs_bp
 from filenergy.views.file import file_bp
 from filenergy.views.health import health_bp
 from filenergy.views.index import index_bp
+from filenergy.views.onboarding import onboarding_bp
 from filenergy.views.settings_views import settings_bp
 from filenergy.views.share import share_bp
 from filenergy.views.user import user_bp
@@ -27,6 +29,8 @@ app.register_blueprint(share_bp, url_prefix="/s")
 app.register_blueprint(billing_bp, url_prefix="/webhooks")
 app.register_blueprint(api_v1_bp, url_prefix="/api/v1")
 app.register_blueprint(docs_bp, url_prefix="/api/v1")
+app.register_blueprint(onboarding_bp, url_prefix="/onboarding")
+app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
 app.register_blueprint(health_bp)
 
 

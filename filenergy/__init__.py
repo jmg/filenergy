@@ -1,5 +1,8 @@
+import os
+
 from flask import Flask
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
 from filenergy import settings
@@ -18,5 +21,13 @@ from filenergy import models  # noqa: E402,F401
 from filenergy import views  # noqa: E402,F401
 from filenergy import admin  # noqa: E402,F401
 
-with app.app_context():
-    db.create_all()
+# Wire Alembic. Production deploys should run `flask db upgrade`. Local
+# dev and tests still use `db.create_all()` so the suite doesn't depend on
+# Alembic state. Set FILENERGY_SKIP_CREATE_ALL=1 when running migrations
+# so autogenerate can compare against an empty schema.
+migrate = Migrate(app, db)
+
+if not os.environ.get("FILENERGY_SKIP_CREATE_ALL"):
+    with app.app_context():
+        db.create_all()
+

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<div class="row well" style="max-width:640px;margin:40px auto;">
+  <h2>Welcome to Filenergy</h2>
+  <p style="color:#666;">Two quick choices and you're done.</p>
+
+  <h4>1. Name your workspace</h4>
+  <form method="POST" action="{{ url_for('onboarding.rename_workspace') }}" class="form-inline">
+    <input type="text" name="name" value="{{ workspace_name }}" class="input-xlarge" required>
+    <button class="btn btn-default" type="submit">Save</button>
+  </form>
+
+  <h4 style="margin-top:24px;">2. Try it with sample files?</h4>
+  <p style="color:#666;font-size:14px;">
+    We'll drop three short Markdown files into your library so you can
+    immediately try the chat. You can delete them anytime.
+  </p>
+
+  {% if has_files %}
+    <p style="color:#888;"><em>You already have files — skip this step.</em></p>
+    <a class="btn btn-primary" href="{{ url_for('ask.index') }}">Ask your library</a>
+  {% else %}
+    <form method="POST" action="{{ url_for('onboarding.seed') }}" style="display:inline">
+      <button class="btn btn-primary btn-large" type="submit">Add sample files</button>
+    </form>
+    <form method="POST" action="{{ url_for('onboarding.skip') }}" style="display:inline">
+      <button class="btn btn-large" type="submit">Skip — I'll upload my own</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

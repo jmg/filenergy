@@ -71,12 +71,19 @@ _HANDLERS = {
 }
 
 
+_OCR_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf"}
+
+
 def is_indexable(filename: str) -> bool:
     ext = os.path.splitext(filename)[1].lower()
     if ext in _HANDLERS:
         return True
     mime, _ = mimetypes.guess_type(filename)
-    return bool(mime and mime.startswith("text/"))
+    if mime and mime.startswith("text/"):
+        return True
+    # OCR-eligible types: regular extraction returns empty, then index_file
+    # falls back to Claude vision.
+    return ext in _OCR_EXTS
 
 
 def extract_text(path: str) -> str | None:

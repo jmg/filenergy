@@ -4,10 +4,29 @@ from flask import Blueprint, g, jsonify, make_response, render_template, request
 from flask_login import login_required
 
 from filenergy.models import File
-from filenergy.services import billing, collections, events, share_links
+from filenergy.services import billing, collections, events, ingestion, share_links
 from filenergy.services.file import FileService
 
 file_bp = Blueprint("file", __name__)
+
+
+@file_bp.route("/from_url/", methods=["POST"])
+@login_required
+def from_url():
+    url = (request.form.get("url") or "").strip()
+    if not url:
+        return jsonify(error="URL is required"), 400
+    try:
+        billing.ensure_can_upload(g.workspace)
+    except billing.QuotaExceeded as exc:
+        return jsonify(error=str(exc), kind=exc.kind), 402
+    try:
+        f = ingestion.ingest_url(user=g.user, workspace=g.workspace, url=url)
+    except ingestion.IngestionError as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(
+        ok=True, file_id=f.id, name=f.name, url=f.url,
+    )
 
 
 @file_bp.route("/<int:file_id>")

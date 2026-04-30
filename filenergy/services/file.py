@@ -6,7 +6,7 @@ import threading
 
 from filenergy import app, db, settings
 from filenergy.models import Chunk, File, utcnow
-from filenergy.services import embeddings, enrichment, events, extraction
+from filenergy.services import embeddings, enrichment, events, extraction, ocr
 from filenergy.services.base import BaseService
 
 log = logging.getLogger(__name__)
@@ -105,6 +105,11 @@ class FileService(BaseService):
 
         try:
             text = extraction.extract_text(db_file.path)
+            if not text and ocr.is_configured():
+                # Scanned PDFs and image-only docs land here. Fall back to
+                # Claude vision OCR.
+                log.info("Trying OCR fallback for %s", db_file.name)
+                text = ocr.ocr_file(db_file.path)
             if not text:
                 db_file.index_error = "no text extracted"
                 db.session.commit()
