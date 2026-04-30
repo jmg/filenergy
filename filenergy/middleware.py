@@ -2,12 +2,18 @@ from flask import g
 from flask_login import current_user
 
 from filenergy import app, login_manager
+from filenergy.services import workspaces
 from filenergy.services.user import UserService
 
 
 @app.before_request
 def before_request():
     g.user = current_user
+    g.workspace = (
+        workspaces.get_current(current_user)
+        if getattr(current_user, "is_authenticated", False)
+        else None
+    )
 
 
 @login_manager.user_loader

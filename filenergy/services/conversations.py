@@ -1,4 +1,4 @@
-"""CRUD around chat conversations and messages."""
+"""CRUD around chat conversations and messages, scoped to a workspace."""
 from __future__ import annotations
 
 import json
@@ -9,26 +9,31 @@ from filenergy.models import Conversation, Message
 from filenergy.services import events
 
 
-def get_or_create(user, conversation_id: int | None) -> Conversation:
+def get_or_create(user, workspace, conversation_id: int | None) -> Conversation:
     if conversation_id:
         conv = Conversation.query.filter_by(
-            id=conversation_id, user_id=user.id
+            id=conversation_id, user_id=user.id, workspace_id=workspace.id
         ).first()
         if conv is not None:
             return conv
 
-    conv = Conversation(user_id=user.id, title="New conversation")
+    conv = Conversation(
+        user_id=user.id, workspace_id=workspace.id, title="New conversation"
+    )
     db.session.add(conv)
     db.session.commit()
     events.log_event(
-        events.CONVERSATION_CREATED, user=user, conversation_id=conv.id
+        events.CONVERSATION_CREATED,
+        user=user,
+        workspace_id=workspace.id,
+        conversation_id=conv.id,
     )
     return conv
 
 
-def list_for_user(user) -> list[Conversation]:
+def list_for_user(user, workspace) -> list[Conversation]:
     return (
-        Conversation.query.filter_by(user_id=user.id)
+        Conversation.query.filter_by(user_id=user.id, workspace_id=workspace.id)
         .order_by(Conversation.id.desc())
         .limit(50)
         .all()
@@ -68,7 +73,6 @@ def add_assistant_message(
 
 
 def history(conversation: Conversation, limit: int = 12) -> list[Message]:
-    """Return the last N messages, oldest first, for prompt construction."""
     msgs = (
         Message.query.filter_by(conversation_id=conversation.id)
         .order_by(Message.id.desc())
@@ -78,15 +82,18 @@ def history(conversation: Conversation, limit: int = 12) -> list[Message]:
     return list(reversed(msgs))
 
 
-def delete(user, conversation_id: int) -> bool:
+def delete(user, workspace, conversation_id: int) -> bool:
     conv = Conversation.query.filter_by(
-        id=conversation_id, user_id=user.id
+        id=conversation_id, user_id=user.id, workspace_id=workspace.id
     ).first()
     if conv is None:
         return False
     db.session.delete(conv)
     db.session.commit()
     events.log_event(
-        events.CONVERSATION_DELETED, user=user, conversation_id=conversation_id
+        events.CONVERSATION_DELETED,
+        user=user,
+        workspace_id=workspace.id,
+        conversation_id=conversation_id,
     )
     return True

@@ -180,19 +180,29 @@ def client(app):
 
 @pytest.fixture
 def user(app, db):
-    """Create a user via the service layer (so password hashing works)."""
+    """Create a user + their default workspace."""
     from filenergy.models import User
+    from filenergy.services import workspaces
 
     u = User(email="alice@example.com", username="alice@example.com")
     u.set_password("password")
     db.session.add(u)
     db.session.commit()
+    workspaces.ensure_default_for(u)
     return u
 
 
 @pytest.fixture
+def workspace(user):
+    """The current user's default workspace."""
+    from filenergy.services import workspaces
+
+    return workspaces.list_for_user(user)[0]
+
+
+@pytest.fixture
 def auth_client(client, user):
-    """Logged-in test client."""
+    """Logged-in test client. The login also sets g.workspace."""
     client.post(
         "/user/login/",
         data={"email": user.email, "password": "password"},
@@ -201,7 +211,7 @@ def auth_client(client, user):
 
 
 @pytest.fixture
-def uploaded_file(auth_client, db, user):
+def uploaded_file(auth_client, db, user, workspace):
     """Upload one indexable file, return the resulting File row."""
     import io
 
@@ -217,4 +227,4 @@ def uploaded_file(auth_client, db, user):
     )
     from filenergy.models import File
 
-    return File.query.filter_by(user_id=user.id).first()
+    return File.query.filter_by(workspace_id=workspace.id).first()

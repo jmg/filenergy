@@ -98,8 +98,8 @@ def _build_messages(conversation_messages, context: str, question: str) -> list[
     return messages
 
 
-def _retrieve(user, question: str):
-    return embeddings.search(user, question, settings.RETRIEVAL_K)
+def _retrieve(workspace, question: str):
+    return embeddings.search(workspace, question, settings.RETRIEVAL_K)
 
 
 def _no_results_message() -> str:
@@ -109,8 +109,8 @@ def _no_results_message() -> str:
     )
 
 
-def answer_question(user, question: str, history: Iterable[Message] = ()) -> Answer:
-    retrieved = _retrieve(user, question)
+def answer_question(workspace, question: str, history: Iterable[Message] = ()) -> Answer:
+    retrieved = _retrieve(workspace, question)
     if not retrieved:
         return Answer(text=_no_results_message(), sources=[])
 
@@ -144,7 +144,7 @@ def _sse(event: str, data) -> str:
 
 
 def stream_answer(
-    user, question: str, history: Iterable[Message] = ()
+    workspace, question: str, history: Iterable[Message] = ()
 ) -> Iterable[str]:
     """Yield SSE-formatted strings for an EventSource consumer.
 
@@ -154,7 +154,7 @@ def stream_answer(
         - error: ({"message": "..."})
     """
     try:
-        retrieved = _retrieve(user, question)
+        retrieved = _retrieve(workspace, question)
     except Exception as exc:  # network, auth, etc.
         yield _sse("error", {"message": str(exc)})
         return

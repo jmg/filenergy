@@ -23,6 +23,12 @@ class UserService(BaseService):
         user = self.new(username=username, email=email)
         user.set_password(password)
         self.save(user)
+
+        # Every new user gets a personal workspace + ownership.
+        from filenergy.services import workspaces  # local import — avoids cycle
+
+        workspaces.ensure_default_for(user)
+
         login_user(user)
         return None
 
@@ -30,6 +36,11 @@ class UserService(BaseService):
         user = self.get_one(email=email)
         if user is None or not user.check_password(password):
             return "Email or password incorrect."
+
+        # Existing users predating workspaces still need a default.
+        from filenergy.services import workspaces
+
+        workspaces.ensure_default_for(user)
 
         login_user(user)
         return None

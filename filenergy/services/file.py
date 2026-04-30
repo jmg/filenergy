@@ -2,8 +2,9 @@ import hashlib
 import json
 import logging
 import os
+import threading
 
-from filenergy import db, settings
+from filenergy import app, db, settings
 from filenergy.models import Chunk, File, utcnow
 from filenergy.services import embeddings, events, extraction
 from filenergy.services.base import BaseService
@@ -15,7 +16,7 @@ class FileService(BaseService):
 
     entity = File
 
-    def save_file(self, request, user):
+    def save_file(self, request, user, workspace, *, sync_index=None):
         os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
         file_obj = request.files.get("files[]")
@@ -38,18 +39,27 @@ class FileService(BaseService):
             path=file_path,
             name=safe_name,
             user=user,
+            workspace_id=workspace.id,
             is_public=is_public,
             size_bytes=size_bytes,
         )
         events.log_event(
             events.FILE_UPLOADED,
             user=user,
+            workspace_id=workspace.id,
             file_id=db_file.id,
             name=safe_name,
             size=size_bytes,
         )
 
-        self.index_file(db_file)
+        if sync_index is None:
+            sync_index = settings.SYNC_INDEXING or app.config.get("TESTING", False)
+
+        if sync_index:
+            self.index_file(db_file)
+        else:
+            self._index_async(db_file.id)
+
         return self._upload_response(db_file)
 
     def _upload_response(self, db_file):
@@ -58,6 +68,7 @@ class FileService(BaseService):
             "size": db_file.size_bytes / 1000.0,
             "url": db_file.url,
             "indexed": db_file.indexed_at is not None,
+            "id": db_file.id,
         }])
 
     def _persist_upload(self, **params):
@@ -65,11 +76,21 @@ class FileService(BaseService):
         db.session.add(db_file)
         db.session.commit()
 
-        # Hash the row id so the public URL doesn't leak the integer id.
         db_file.url = hashlib.sha256(str(db_file.id).encode("utf-8")).hexdigest()
         db.session.add(db_file)
         db.session.commit()
         return db_file
+
+    def _index_async(self, file_id: int) -> None:
+        """Run indexing in a background thread with its own app context."""
+
+        def _run():
+            with app.app_context():
+                f = File.query.get(file_id)
+                if f is not None:
+                    self.index_file(f)
+
+        threading.Thread(target=_run, name=f"index-{file_id}", daemon=True).start()
 
     def index_file(self, db_file):
         """Extract text, chunk it, embed each chunk, and persist."""
@@ -90,6 +111,7 @@ class FileService(BaseService):
                 events.log_event(
                     events.FILE_INDEX_FAILED,
                     user=db_file.user,
+                    workspace_id=db_file.workspace_id,
                     file_id=db_file.id,
                     reason="no_text",
                 )
@@ -105,7 +127,6 @@ class FileService(BaseService):
                 return False
 
             vectors = embeddings.embed_documents(chunks)
-            # Drop any existing chunks before re-adding (supports reindex).
             Chunk.query.filter_by(file_id=db_file.id).delete()
             for position, (content, vector) in enumerate(zip(chunks, vectors)):
                 db.session.add(Chunk(
@@ -121,6 +142,7 @@ class FileService(BaseService):
             events.log_event(
                 events.FILE_INDEXED,
                 user=db_file.user,
+                workspace_id=db_file.workspace_id,
                 file_id=db_file.id,
                 chunks=len(chunks),
             )
@@ -134,6 +156,7 @@ class FileService(BaseService):
             events.log_event(
                 events.FILE_INDEX_FAILED,
                 user=db_file.user,
+                workspace_id=db_file.workspace_id,
                 file_id=db_file.id,
                 reason=str(exc)[:200],
             )
@@ -145,7 +168,9 @@ class FileService(BaseService):
 
         file_id = db_file.id
         user = db_file.user
+        workspace_id = db_file.workspace_id
         name = db_file.name
+        path = db_file.path
 
         try:
             db.session.delete(db_file)
@@ -155,13 +180,17 @@ class FileService(BaseService):
             return False
 
         try:
-            if db_file.path and os.path.exists(db_file.path):
-                os.remove(db_file.path)
+            if path and os.path.exists(path):
+                os.remove(path)
         except OSError:
             pass
 
         events.log_event(
-            events.FILE_DELETED, user=user, file_id=file_id, name=name
+            events.FILE_DELETED,
+            user=user,
+            workspace_id=workspace_id,
+            file_id=file_id,
+            name=name,
         )
         return True
 
@@ -177,13 +206,14 @@ class FileService(BaseService):
         with open(db_file.path, "rb") as fd:
             return fd.read()
 
-    def search(self, user, file_name):
+    def search(self, workspace, user, file_name):
+        """Within a workspace: name match across files visible to user.
+
+        Anonymous callers (workspace=None) only see public files.
+        """
         like = File.name.like(f"%{file_name}%")
-        is_public = File.is_public.is_(True)
-
-        if user.is_authenticated:
-            query = (is_public | (File.user == user)) & like
-        else:
-            query = is_public & like
-
-        return File.query.filter(query).all()
+        if workspace is None:
+            return File.query.filter(File.is_public.is_(True), like).all()
+        return (
+            File.query.filter(File.workspace_id == workspace.id, like).all()
+        )

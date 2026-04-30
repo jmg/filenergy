@@ -33,6 +33,45 @@ RETRIEVAL_K = int(os.environ.get("FILENERGY_RETRIEVAL_K", 6))
 ASK_RATE_LIMIT = int(os.environ.get("FILENERGY_ASK_RATE_LIMIT", 30))
 ASK_RATE_WINDOW_SECONDS = int(os.environ.get("FILENERGY_ASK_RATE_WINDOW", 60))
 
+# When True, run indexing in-line on the request thread. Tests force this on.
+SYNC_INDEXING = os.environ.get("FILENERGY_SYNC_INDEXING", "false").lower() == "true"
+
+# Stripe
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
+STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
+STRIPE_PRICE_PRO = os.environ.get("STRIPE_PRICE_PRO")
+STRIPE_PRICE_TEAM = os.environ.get("STRIPE_PRICE_TEAM")
+APP_BASE_URL = os.environ.get("FILENERGY_BASE_URL", "http://localhost:5000")
+
+# Plan limits per workspace per month / forever.
+PLAN_LIMITS = {
+    "free": {
+        "asks_per_month": 100,
+        "files_max": 25,
+        "members_max": 1,
+        "storage_bytes_max": 100 * 1024 * 1024,    # 100 MB
+        "label": "Free",
+        "price_monthly": 0,
+    },
+    "pro": {
+        "asks_per_month": 2000,
+        "files_max": 1000,
+        "members_max": 1,
+        "storage_bytes_max": 5 * 1024 * 1024 * 1024,  # 5 GB
+        "label": "Pro",
+        "price_monthly": 19,
+    },
+    "team": {
+        "asks_per_month": 20000,
+        "files_max": 25000,
+        "members_max": 25,
+        "storage_bytes_max": 100 * 1024 * 1024 * 1024,  # 100 GB
+        "label": "Team",
+        "price_monthly": 99,
+    },
+}
+
 
 FLASK_CONFIG = {
     "SECRET_KEY": SECRET_KEY,

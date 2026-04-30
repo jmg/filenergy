@@ -1,33 +1,46 @@
 # Filenergy
 
-A private file host that turns into a searchable, askable knowledge base.
-Drop PDFs, DOCX, Markdown or text files in and Filenergy extracts the text,
-embeds it, and lets you chat with your library — citations included.
+A multi-tenant private file host that turns into a searchable, askable
+knowledge base. Drop PDFs, DOCX, Markdown or text in and Filenergy extracts
+the text, embeds it, and lets you (or your team) chat with the library —
+with citations, a programmatic API, and Stripe billing built in.
 
-Built on Flask 3 + SQLite, [Voyage](https://www.voyageai.com/) for
-embeddings, and the Anthropic Claude API for answers.
+Stack: Flask 3 + SQLite, [Voyage](https://www.voyageai.com/) embeddings,
+the Anthropic Claude API for answers, and Stripe Checkout for billing.
 
-## Features
+## Highlights
 
-- **Multi-file upload** with per-user isolation and hash-based share URLs.
-- **Automatic indexing** on upload: PDF, DOCX, TXT, Markdown, CSV, JSON, HTML
-  and any text/* MIME type. Status badges in the file list show
-  indexed / pending / error per row, and you can re-index any file with one
-  click.
-- **Semantic search** built on Voyage embeddings + cosine similarity.
-- **Streaming chat** at `/ask` — Server-Sent Events deliver tokens as
-  Claude generates them. Markdown is rendered live; sources link back to
-  the originals.
-- **Multi-turn conversations** persisted to SQLite. Pick threads up where
-  you left off, with the last 12 turns sent back to the model for context.
-- **Rate limiting** on `/ask` (sliding window, DB-backed) so a runaway
-  client can't drain your API budget.
-- **Event log** for every meaningful action: upload, download, index,
-  question, answer, login, rate-limit hits. Doubles as the rate-limiter's
-  audit trail and as the substrate for billing.
-- **Public share toggle** per file. Owners get private by default; downloads
-  enforce ownership unless the file is explicitly public.
-- **97% test coverage** (165 tests, pytest + pytest-cov).
+- **Workspaces (multi-tenant)** — every user gets a personal workspace and
+  can be invited to others. Roles (owner / admin / member). Members,
+  invitations, and a switcher live under `/settings/workspace`.
+- **Streaming chat** — Server-Sent Events feed tokens to the browser as
+  Claude generates them. Markdown is rendered live; sources cite back to
+  the originals. Multi-turn threads persist with the last 12 messages of
+  context sent back to the model.
+- **Background indexing** — uploads return immediately and the embedding
+  pipeline runs in a daemon thread (synchronous in tests via
+  `FILENERGY_SYNC_INDEXING`).
+- **Plan-based quotas** — `free` / `pro` / `team` tiers with limits on
+  storage, file count, members, and questions per month. Quota checks fire
+  before uploads and `/ask`.
+- **Stripe billing** — Checkout sessions, webhook reconciliation, and
+  per-workspace customer/subscription state. Plans flip to free
+  automatically on cancellation.
+- **API keys + `/api/v1`** — bearer-token auth to `POST /api/v1/files`,
+  `POST /api/v1/ask`, `GET /api/v1/files`. Token hashes only; plaintext
+  shown once at creation.
+- **Public share links** — per-file unguessable URLs with optional TTL
+  and download caps. Each download is logged and counted.
+- **Sliding-window rate limit** on `/ask` (per user) layered on top of the
+  same Event log.
+- **Event log** — every meaningful action lands in a row. Doubles as the
+  audit trail, the rate-limiter substrate, and the billing usage gauges.
+- **Settings UI** — profile (change password), workspace (members +
+  invitations + switching), API keys (mint + revoke), billing (live usage
+  meters + Checkout buttons).
+- **Indexing badges** — the file list shows `indexed` / `pending` /
+  `error` per row with one-click reindex.
+- **272 tests, 97.6% coverage** (pytest + pytest-cov).
 
 ## Setup
 
@@ -37,29 +50,32 @@ embeddings, and the Anthropic Claude API for answers.
 pip install -r requirements.txt
 ```
 
-### 2. Configure
-
-Copy these into a `.env` at the repo root:
+### 2. Configure (`.env`)
 
 ```env
-# Required for /ask. https://console.anthropic.com/
+# Required for /ask
 ANTHROPIC_API_KEY=sk-ant-...
-
-# Required for indexing + retrieval. https://www.voyageai.com/
+# Required for indexing + retrieval
 VOYAGE_API_KEY=pa-...
 
-# Optional
-FILENERGY_SECRET_KEY=change-me-in-production
+# Stripe (optional — billing UI degrades gracefully without it)
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLIC_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_PRO=price_...
+STRIPE_PRICE_TEAM=price_...
+FILENERGY_BASE_URL=https://your-domain.com
+
+# Misc
+FILENERGY_SECRET_KEY=change-me
 FILENERGY_DB_PATH=filenergy.db
 FILENERGY_UPLOAD_DIR=files
 CLAUDE_MODEL=claude-opus-4-7
 VOYAGE_EMBED_MODEL=voyage-3-lite
-FILENERGY_ASK_RATE_LIMIT=30           # requests
-FILENERGY_ASK_RATE_WINDOW=60          # seconds
+FILENERGY_SYNC_INDEXING=false        # true = inline indexing (helpful in tests)
+FILENERGY_ASK_RATE_LIMIT=30          # per window
+FILENERGY_ASK_RATE_WINDOW=60         # seconds
 ```
-
-Without API keys the app still runs as a basic file host — only `/ask` and
-indexing are disabled, with clear UI banners.
 
 ### 3. Run
 
@@ -69,79 +85,141 @@ python manage.py
 
 http://localhost:5000
 
-### CLI commands
+For the Stripe webhook locally:
+
+```bash
+stripe listen --forward-to localhost:5000/webhooks/stripe
+```
+
+### CLI
 
 ```bash
 python manage.py create-superuser admin@example.com 'a-good-password'
 python manage.py reindex
 ```
 
+## Plans
+
+| | Free | Pro $19/mo | Team $99/mo |
+|---|---|---|---|
+| Questions / month | 100 | 2,000 | 20,000 |
+| Storage | 100 MB | 5 GB | 100 GB |
+| Files | 25 | 1,000 | 25,000 |
+| Members | 1 | 1 | 25 |
+
+Adjust in `filenergy/settings.py:PLAN_LIMITS`.
+
+## API
+
+```bash
+# Mint a key in /settings/keys, then:
+
+curl -X POST http://localhost:5000/api/v1/ask \
+  -H "Authorization: Bearer $FILENERGY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What do my contracts say about termination?"}'
+
+curl -X POST http://localhost:5000/api/v1/files \
+  -H "Authorization: Bearer $FILENERGY_TOKEN" \
+  -F "files[]=@./report.pdf"
+
+curl -H "Authorization: Bearer $FILENERGY_TOKEN" \
+  http://localhost:5000/api/v1/files
+```
+
+Errors:
+
+| Code | Meaning |
+|---|---|
+| 401 | Invalid / missing API key |
+| 402 | Plan quota exceeded (file count, storage, asks/month) |
+| 429 | Rate limit hit (per-user sliding window on `/ask`) |
+| 503 | Anthropic / Voyage / Stripe not configured on server |
+
 ## Architecture
 
 ```
-upload  →  text extraction  →  chunk (1200 chars, 150 overlap)  →  Voyage embed
-                                                                       │
-                                                                       ▼
-                                                                  SQLite
+upload  →  text extraction  →  chunk (1200/150)  →  Voyage embed
+                                                       │
+                                                       ▼
+                                                  SQLite
 
-ask     →  Voyage embed (query)  →  cosine top-K  →  Claude (RAG)  →  SSE stream  →  browser
-                                                                          │
-                                                                          ▼
-                                                                  message + sources
-                                                                  persisted to thread
+ask     →  Voyage embed  →  cosine top-K (workspace scope)  →  Claude (RAG, streaming)
+                                                                  │
+                                                                  ▼
+                                                              SSE → browser
+                                                              persisted to thread
+
+billing →  webhook  →  workspace.plan flip  →  next quota check sees the new plan
 ```
 
-- Embeddings live as JSON-encoded float arrays in SQLite. Cheap up to
-  ~10K chunks per user. Swap in `sqlite-vec` or pgvector when you grow past
-  that.
-- `/ask` and `/ask/stream` both use prompt caching on the system prompt and
-  adaptive thinking. The streaming endpoint is wired to a `text_stream`
-  iterator from the Anthropic SDK and proxied verbatim to the browser as
-  SSE.
-- Every meaningful action emits an `Event` row. The rate limiter just
-  counts those events in a sliding window, so the audit trail and the
-  quota check are the same source of truth.
+- Tenant boundary is `workspace_id` on `File`, `Conversation`, `Event`,
+  `ApiKey`. All queries filter on it.
+- Embeddings are JSON-encoded float arrays in SQLite. Fine up to ~10K
+  chunks per workspace; swap in `sqlite-vec` or pgvector for more.
+- Background indexing runs in a daemon thread with its own app context.
+  Tests force it inline via `app.config["TESTING"]`.
+- Rate limiter is a sliding window over the `Event` table — same source
+  of truth as billing usage gauges.
 
 ## Project layout
 
 ```
 filenergy/
-├── settings.py             # env-based config, no hardcoded secrets
-├── __init__.py             # app, db, login_manager
-├── middleware.py           # before_request wiring
-├── admin.py                # Flask-Admin views (superuser only)
-├── models/                 # User, File, Chunk, Conversation, Message, Event
+├── settings.py                 # env config + PLAN_LIMITS
+├── __init__.py                 # app, db, login_manager
+├── middleware.py               # g.user / g.workspace
+├── admin.py                    # superuser-only Flask-Admin
+├── models/
+│   └── __init__.py             # User, Workspace, WorkspaceMember,
+│                               # WorkspaceInvitation, File, Chunk,
+│                               # Conversation, Message, Event, ApiKey,
+│                               # ShareLink
 ├── services/
-│   ├── base.py             # generic SQLAlchemy service
+│   ├── base.py                 # generic SQLAlchemy service
+│   ├── user.py                 # auth + register/login (auto-creates ws)
+│   ├── workspaces.py           # tenancy, invitations, switching
+│   ├── api_keys.py             # token mint/verify/revoke
+│   ├── share_links.py          # public share TTL + cap
+│   ├── billing.py              # Stripe + plan-quota checks
+│   ├── file.py                 # upload, async index, search
+│   ├── extraction.py           # pdf/docx/txt extractors + chunker
+│   ├── embeddings.py           # Voyage client + cosine retrieval
+│   ├── chat.py                 # RAG + Claude streaming
+│   ├── conversations.py        # threads + messages
+│   ├── events.py               # analytics + audit
+│   └── rate_limit.py           # DB-backed sliding window
+├── views/
+│   ├── index.py
 │   ├── user.py
-│   ├── file.py
-│   ├── extraction.py       # pdf/docx/txt extractors + chunker
-│   ├── embeddings.py       # Voyage client + cosine search
-│   ├── chat.py             # RAG + Anthropic streaming
-│   ├── conversations.py    # threads + messages
-│   ├── events.py           # analytics + audit
-│   └── rate_limit.py       # DB-backed sliding window
-├── views/                  # blueprints: index, user, file, ask
-├── templates/              # bootstrap-3 templates
+│   ├── file.py                 # CRUD, reindex, share
+│   ├── ask.py                  # JSON ask + SSE stream
+│   ├── workspace.py            # switch, invite, accept, members
+│   ├── settings_views.py       # profile, keys, ws, billing
+│   ├── share.py                # /s/<token>
+│   ├── api_v1.py               # bearer-auth API
+│   └── billing.py              # /webhooks/stripe
+├── templates/                  # bootstrap-3 templates
 └── static/
 
-tests/                      # pytest suite, 97% coverage
+tests/                          # pytest suite, 272 tests, 97.6% coverage
 ```
 
 ## Testing
 
 ```bash
-pip install pytest pytest-cov
+pip install pytest pytest-cov stripe
 python -m pytest                  # run the suite
 python -m pytest --cov            # with coverage report
 ```
 
+Stubs in `tests/conftest.py` replace Voyage and Anthropic clients; Stripe
+is faked per-test via `sys.modules`. Zero network.
+
 ## Roadmap
 
-- Replace JSON embeddings with `sqlite-vec` for sub-second retrieval at
-  100K+ chunks.
-- Stripe integration: per-workspace metered billing keyed off the event log.
-- API keys for programmatic upload + ask.
-- Workspaces (shared libraries, ACLs, invitations).
-- Background indexing queue (RQ) so large PDFs don't block the upload
-  response.
+- Replace JSON embeddings with `sqlite-vec` (or pgvector when scaling out).
+- Outbound webhooks: subscribe to `file.uploaded`, `ask.answered`, etc.
+- SAML / OIDC SSO for the Team tier.
+- RQ / Celery indexing queue for repos with thousands of files.
+- Conversation export (Markdown, PDF) — useful for compliance.

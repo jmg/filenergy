@@ -9,9 +9,10 @@ from filenergy.models import (
 )
 
 
-def test_utcnow_returns_aware_datetime():
+def test_utcnow_returns_naive_utc():
+    """We deliberately strip tzinfo to match SQLite read-back values."""
     now = utcnow()
-    assert now.tzinfo is not None
+    assert now.tzinfo is None
 
 
 def test_user_password_hash_and_check(db):
