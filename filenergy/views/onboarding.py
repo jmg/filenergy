@@ -59,14 +59,12 @@ def index():
 @login_required
 def seed():
     """Drop the sample files into the workspace and index them."""
+    import os
+    from filenergy import settings as cfg
+
+    os.makedirs(cfg.UPLOAD_DIR, exist_ok=True)
     svc = FileService()
     for name, body in _SAMPLE_FILES:
-        # Reuse the same upload code path as a real upload.
-        from filenergy.views.file import file_bp  # noqa: F401  ensure import order
-        # Synthesize a request-like; easier to call _persist_upload directly.
-        import os
-        from filenergy import settings as cfg
-        os.makedirs(cfg.UPLOAD_DIR, exist_ok=True)
         path = os.path.join(cfg.UPLOAD_DIR, f"sample-{name}")
         with open(path, "wb") as fd:
             fd.write(body)

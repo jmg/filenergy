@@ -12,7 +12,6 @@ import os
 import re
 import threading
 from html.parser import HTMLParser
-from typing import BinaryIO
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import urlparse
