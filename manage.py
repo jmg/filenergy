@@ -1,9 +1,11 @@
 """Run with `flask --app manage run` or `python manage.py`.
 
 Usage:
-  python manage.py             # start the dev server
-  python manage.py reindex     # re-extract + re-embed every file
+  python manage.py                      # start the dev server
+  python manage.py reindex              # re-extract + re-embed every file
   python manage.py create-superuser EMAIL PASSWORD
+  python manage.py generate-encryption-key
+  python manage.py reencrypt            # back-fill at-rest encryption
 """
 from __future__ import annotations
 
@@ -38,6 +40,21 @@ def cmd_create_superuser(email: str, password: str):
         print(f"created superuser: {email}")
 
 
+def cmd_generate_encryption_key():
+    from filenergy.services import crypto
+    print(crypto.generate_key())
+
+
+def cmd_reencrypt():
+    from filenergy.services import crypto
+    with app.app_context():
+        if not crypto.is_configured():
+            print("FILENERGY_ENCRYPTION_KEY is not set; nothing to do.")
+            return
+        counts = crypto.reencrypt_all()
+        print(f"re-encrypted: {counts}")
+
+
 def main(argv: list[str]):
     if len(argv) < 2:
         app.run(debug=True, host="0.0.0.0", port=5000)
@@ -47,6 +64,10 @@ def main(argv: list[str]):
         cmd_reindex()
     elif cmd == "create-superuser":
         cmd_create_superuser(*rest)
+    elif cmd == "generate-encryption-key":
+        cmd_generate_encryption_key()
+    elif cmd == "reencrypt":
+        cmd_reencrypt()
     else:
         print(__doc__)
         sys.exit(1)

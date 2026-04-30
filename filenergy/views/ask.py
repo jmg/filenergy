@@ -195,7 +195,8 @@ def ask():
         return jsonify(error="Failed to answer: " + str(exc)), 500
 
     msg = conversations.add_assistant_message(
-        conversation, answer.text, answer.sources
+        conversation, answer.text, answer.sources,
+        chunk_citations=answer.chunk_citations,
     )
     events.log_event(
         events.ASK_ANSWERED,
@@ -290,6 +291,7 @@ def ask_stream():
 
         full_text_parts: list[str] = []
         sources_payload: list[dict] = []
+        chunk_citations: list = []
         for chunk_str in chat.stream_answer(
             workspace_obj, question, history=history_objs_local,
             collection_id=scope_collection_id, file_id=scope_file_id,
@@ -312,6 +314,7 @@ def ask_stream():
                     try:
                         parsed = _json.loads(data_line[6:])
                         sources_payload = parsed.get("sources", [])
+                        chunk_citations = parsed.get("chunk_citations", [])
                         full_text_parts = [parsed.get("text", "")]
                     except Exception:
                         pass
@@ -319,7 +322,8 @@ def ask_stream():
         conv = Conversation.query.get(conv_id)
         if conv is not None:
             msg = conv_service.add_assistant_message(
-                conv, "".join(full_text_parts), sources_payload
+                conv, "".join(full_text_parts), sources_payload,
+                chunk_citations=chunk_citations,
             )
             events.log_event(
                 events.ASK_ANSWERED,

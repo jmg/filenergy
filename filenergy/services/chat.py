@@ -45,6 +45,10 @@ class Source:
 class Answer:
     text: str
     sources: list[Source]
+    # Per-chunk provenance: (chunk_id, score) for every retrieved chunk that
+    # made it into the prompt. Used by conversations.add_assistant_message
+    # to populate the MessageCitation index.
+    chunk_citations: list = None  # type: ignore[assignment]
 
 
 @lru_cache(maxsize=1)
@@ -64,9 +68,11 @@ def is_configured() -> bool:
     return bool(settings.ANTHROPIC_API_KEY) and embeddings.is_configured()
 
 
-def _build_context(retrieved) -> tuple[str, list[Source]]:
+def _build_context(retrieved):
+    """Returns (context_str, sources_sorted, chunk_citations)."""
     blocks = []
     sources: dict[int, Source] = {}
+    chunk_citations: list[tuple[int, float]] = []
     for chunk, score in retrieved:
         f: File = chunk.file
         blocks.append(
@@ -74,12 +80,17 @@ def _build_context(retrieved) -> tuple[str, list[Source]]:
             f"{chunk.content}\n"
             f"</excerpt>"
         )
+        chunk_citations.append((chunk.id, float(score)))
         if f.id not in sources or sources[f.id].score < score:
             sources[f.id] = Source(
                 file_id=f.id, name=f.name, url=f.url, score=score
             )
     context = "<context>\n" + "\n\n".join(blocks) + "\n</context>"
-    return context, sorted(sources.values(), key=lambda s: -s.score)
+    return (
+        context,
+        sorted(sources.values(), key=lambda s: -s.score),
+        chunk_citations,
+    )
 
 
 def _build_messages(conversation_messages, context: str, question: str) -> list[dict]:
@@ -122,9 +133,9 @@ def answer_question(
         workspace, question, collection_id=collection_id, file_id=file_id
     )
     if not retrieved:
-        return Answer(text=_no_results_message(), sources=[])
+        return Answer(text=_no_results_message(), sources=[], chunk_citations=[])
 
-    context, sources = _build_context(retrieved)
+    context, sources, chunk_citations = _build_context(retrieved)
     messages = _build_messages(list(history), context, question)
 
     with _client().messages.stream(
@@ -146,7 +157,11 @@ def answer_question(
         (b.text for b in message.content if getattr(b, "type", None) == "text"),
         "",
     ).strip()
-    return Answer(text=text or "(no answer)", sources=sources)
+    return Answer(
+        text=text or "(no answer)",
+        sources=sources,
+        chunk_citations=chunk_citations,
+    )
 
 
 def _sse(event: str, data) -> str:
@@ -175,10 +190,10 @@ def stream_answer(
     if not retrieved:
         text = _no_results_message()
         yield _sse("token", {"text": text})
-        yield _sse("done", {"text": text, "sources": []})
+        yield _sse("done", {"text": text, "sources": [], "chunk_citations": []})
         return
 
-    context, sources = _build_context(retrieved)
+    context, sources, chunk_citations = _build_context(retrieved)
     messages = _build_messages(list(history), context, question)
 
     parts: list[str] = []
@@ -206,5 +221,9 @@ def stream_answer(
     text = ("".join(parts)).strip() or "(no answer)"
     yield _sse(
         "done",
-        {"text": text, "sources": [asdict(s) for s in sources]},
+        {
+            "text": text,
+            "sources": [asdict(s) for s in sources],
+            "chunk_citations": chunk_citations,
+        },
     )
