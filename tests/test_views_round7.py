@@ -274,7 +274,7 @@ def test_saml_status(client):
     assert r.status_code == 200
     body = r.get_json()
     assert body["enabled"] is False
-    assert "implementation" in body
+    assert "library_available" in body
 
 
 def test_saml_login_unconfigured(client, monkeypatch):
@@ -283,11 +283,13 @@ def test_saml_login_unconfigured(client, monkeypatch):
     assert r.status_code == 503
 
 
-def test_saml_login_returns_501_when_stub(client, monkeypatch):
+def test_saml_login_without_library(client, monkeypatch):
+    """SAML enabled but python3-saml not installed → 503 with a clear message."""
     monkeypatch.setenv("SAML_ENABLED", "true")
     monkeypatch.setenv("SAML_IDP_METADATA_URL", "https://idp/x")
     r = client.get("/saml/login")
-    assert r.status_code == 501
+    # Either python3-saml or the metadata fetch fails — both surface as 503.
+    assert r.status_code == 503
 
 
 def test_saml_acs_unconfigured(client, monkeypatch):
@@ -296,17 +298,21 @@ def test_saml_acs_unconfigured(client, monkeypatch):
     assert r.status_code == 503
 
 
-def test_saml_acs_stub_returns_501(client, monkeypatch):
+def test_saml_acs_without_library_redirects(client, monkeypatch):
     monkeypatch.setenv("SAML_ENABLED", "true")
     monkeypatch.setenv("SAML_IDP_METADATA_URL", "https://idp/x")
-    r = client.post("/saml/acs", data={"SAMLResponse": "x"})
-    assert r.status_code == 501
+    r = client.post("/saml/acs", data={"SAMLResponse": "x"}, follow_redirects=False)
+    # Library missing or metadata fetch fails → flash + redirect to /user/login/.
+    assert r.status_code == 302
 
 
-def test_saml_init_request_raises():
-    """Direct unit-level: stub raises NotImplementedError."""
+def test_saml_init_request_unconfigured_raises():
     from filenergy.services import saml_sso
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(saml_sso.SAMLError):
         saml_sso.init_request(redirect_uri="x")
-    with pytest.raises(NotImplementedError):
+
+
+def test_saml_process_response_unconfigured_raises():
+    from filenergy.services import saml_sso
+    with pytest.raises(saml_sso.SAMLError):
         saml_sso.process_response({})

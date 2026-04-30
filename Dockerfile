@@ -6,9 +6,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# OS deps for pypdf (cryptography) and python-docx are wheel-only on slim.
+# OS deps:
+# - curl: healthcheck
+# - libxml2 + xmlsec1 + pkg-config: required by python3-saml (SAML SSO)
+# - libpq5: required by psycopg2-binary (Postgres engine)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        libxml2 libxml2-dev \
+        libxmlsec1-dev libxmlsec1-openssl \
+        pkg-config \
+        libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./

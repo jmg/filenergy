@@ -5,7 +5,7 @@ from flask import g, request
 from flask_login import current_user
 
 from filenergy import app, login_manager
-from filenergy.services import metrics, workspaces
+from filenergy.services import connector_scheduler, metrics, workspaces
 from filenergy.services.user import UserService
 
 log = logging.getLogger("filenergy.request")
@@ -13,6 +13,8 @@ log = logging.getLogger("filenergy.request")
 
 @app.before_request
 def before_request():
+    # Lazy-start the connector sync scheduler (no-op in TESTING).
+    connector_scheduler.ensure_started()
     g.user = current_user
     g.workspace = (
         workspaces.get_current(current_user)

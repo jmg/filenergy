@@ -136,12 +136,30 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 
 ### Connectors framework
 
-- Pluggable third-party sources via `filenergy/services/connectors.py`.
-- **Google Drive** reference implementation: OAuth dance, token refresh,
-  list + download files (native Google docs are exported as text/CSV;
-  PDFs and text/* MIME types are pulled directly).
-- Manage connections at `/connectors/`. Sync runs on demand from the UI.
-  Same shape ready for Notion / Slack / Dropbox / Box.
+Pluggable third-party sources via `filenergy/services/connectors.py`.
+Manage connections at `/connectors/`. Each connector implements
+`authorize_url` / `complete_oauth` / `sync` and runs on demand from the
+UI or via the scheduler.
+
+- **Google Drive** — full OAuth dance, refresh tokens, native Google
+  docs exported as text/CSV; PDFs and `text/*` MIME types pulled
+  directly.
+- **Notion** — OAuth + `search` + recursive block flattening into
+  Markdown. Stores each page as `<title>.md`.
+- **Dropbox** — OAuth (offline access), token refresh, `list_folder` +
+  `download` for indexable extensions (PDF, DOCX, MD, TXT, CSV, JSON,
+  HTML, log).
+- **Slack** — OAuth read-only scopes, fetches the most recent channels
+  and writes per-channel transcripts as `slack-<channel>.txt`.
+
+### Connector sync scheduler
+
+`filenergy/services/connector_scheduler.py` runs a single daemon thread
+that wakes every `FILENERGY_SYNC_INTERVAL_MIN` minutes (default 60),
+walks every `ConnectorAccount` whose `last_synced_at` is stale, and
+re-runs its `sync()` as the workspace owner. Errors land in
+`account.last_error` instead of crashing the loop. Disabled in TESTING
+and when `FILENERGY_SYNC_SCHEDULER=false`.
 
 ### Browser extension
 
@@ -159,26 +177,45 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
   the dep or URL is missing.
 - Tests force synchronous execution via `app.config["TESTING"]`.
 
-### Postgres
+### Postgres + pgvector
 
-- The DB engine is just whatever URI you put in `FILENERGY_DB_URI`. Set
-  `postgresql://user:pass@host/db` and `flask db upgrade` once. SQLite
-  is fine for dev and small tenants; Postgres is the production target.
-- Embeddings are still JSON-in-Text columns. `pgvector` migration is on
-  the roadmap (when a tenant crosses ~10K chunks).
+- DB engine is whatever URI you put in `FILENERGY_DB_URI`. Set
+  `postgresql://user:pass@host/db`, then `flask db upgrade`.
+- For real-scale RAG retrieval, install `pgvector>=0.2` and run:
 
-### SAML SSO (scaffold)
+  ```python
+  from filenergy.services import pgvector_store
+  pgvector_store.enable_pgvector(dim=512)   # creates extension + col + ivfflat index
+  pgvector_store.reembed_existing()         # back-fill from JSON column
+  ```
 
-- `services/saml_sso.py` defines the SP-side hooks; the Filenergy build
-  ships them as stubs that return clear `501 Not Implemented`. Plug in
-  `python3-saml` or `pysaml2` in your fork (system deps: `libxml2`,
-  `xmlsec1`) and replace `init_request` / `process_response`.
-- `/saml/status` returns the live config so you can verify env wiring
-  before installing the C library.
+  After that, `embeddings.search` automatically uses an `ORDER BY
+  cosine` SQL query instead of pulling every chunk into Python. SQLite
+  callers stay on the JSON+numpy path with no code change.
+
+### SAML SSO
+
+- `filenergy/services/saml_sso.py` is a real `python3-saml` wrapper
+  (not a stub). Set `SAML_ENABLED=true`, `SAML_IDP_METADATA_URL`,
+  `SAML_SP_ENTITY_ID`, and (optionally) `SAML_SP_X509_CERT` /
+  `SAML_SP_PRIVATE_KEY`. The Dockerfile installs the required
+  `libxml2` / `xmlsec1` system libraries.
+- `/saml/login` redirects the browser to the IdP. `/saml/acs` validates
+  the SAMLResponse, provisions the user (or links by email), creates a
+  default workspace, and logs them in.
+- `/saml/status` reports configuration + whether `python3-saml` is
+  importable, so you can verify env wiring before flipping it on.
+
+### Browser extension
+
+- `browser-extension/` — Chrome MV3 popup. Paste your server URL + an
+  API key, click "Save page". POSTs the current tab's URL to
+  `/file/from_url/` with `Authorization: Bearer …`. The endpoint accepts
+  either session cookies or API keys.
 
 ### Tests
 
-**522 tests, 97.5% coverage** (pytest + pytest-cov).
+**614 tests, 97.7% coverage** (pytest + pytest-cov).
 
 ## Where we sit vs the competition
 
@@ -192,9 +229,11 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 | OCR for scanned PDFs / images | ✅        | ✅         | ✅     | ❌       | ❌    |
 | URL ingestion                 | ✅        | ✅         | ❌     | ❌       | ❌    |
 | Conversation export (MD/PDF/DOCX) | ✅    | partial    | ❌     | ❌       | ❌    |
-| GDrive connector              | ✅        | ❌         | ❌     | ✅       | ✅    |
+| GDrive / Notion / Dropbox / Slack connectors | ✅ | ❌  | ❌     | ✅       | ✅    |
+| Connector sync scheduler      | ✅        | ❌         | ❌     | ✅       | ✅    |
 | Browser extension             | ✅        | ❌         | ❌     | ❌       | ❌    |
 | Background job queue (RQ)     | ✅        | n/a        | n/a    | n/a      | n/a   |
+| pgvector retrieval            | ✅        | n/a        | n/a    | n/a      | n/a   |
 | Outbound webhooks             | ✅        | ❌         | ❌     | ✅       | ✅    |
 | Audit log UI + CSV export     | ✅        | ❌         | ❌     | ❌       | ✅    |
 | Activity dashboard            | ✅        | ❌         | ❌     | ✅       | ✅    |
@@ -207,8 +246,7 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 | Prometheus `/metrics`         | ✅        | ❌         | ❌     | ❌       | ✅    |
 | Onboarding wizard             | ✅        | ✅         | ✅     | ❌       | ✅    |
 | Alembic migrations            | ✅        | n/a        | n/a    | n/a      | n/a   |
-| SAML SSO                      | scaffold  | ❌         | ❌     | ✅       | ✅    |
-| Notion / Slack connectors     | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
+| SAML SSO                      | ✅        | ❌         | ❌     | ✅       | ✅    |
 
 ## Setup
 
@@ -408,11 +446,11 @@ TLS terminated.
 
 ## Roadmap
 
-- **SAML SSO**: replace `services/saml_sso.py` stubs with `python3-saml`
-  or `pysaml2` calls (system deps required).
-- **Notion / Slack / Dropbox connectors** following the
-  `services/connectors.py` shape (Google Drive is the reference).
-- **pgvector** for embeddings — the schema migration when a tenant
-  crosses ~10K chunks; SQLite + JSON columns work fine until then.
-- **Background sync schedules** for connectors (today is manual via the
-  "Sync now" button).
+- **Per-connector OAuth scope tightening** (Slack/Notion currently ask
+  broader scopes than strictly needed for read-only sync).
+- **Connector incremental sync** with cursors / `modifiedTime > since`
+  (today's loop pulls a recent slice and dedupes by name).
+- **More chunk-level provenance** on dashboard (which chunk got cited,
+  not just which file).
+- **Encryption at rest** for `embedding`, `text_content`, `access_token`
+  columns (envelope encryption with a KEK in env / KMS).

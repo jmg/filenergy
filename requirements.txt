@@ -18,5 +18,9 @@ fpdf2>=2.7
 # Optional: install + run an `rq` worker to use FILENERGY_JOBS_BACKEND=rq
 # rq>=1.16
 # redis>=5.0
-# Optional: install for SAML SSO; needs libxml2 + xmlsec system libs
+# Optional: SAML SSO (needs libxml2 + xmlsec system libs — Dockerfile includes them)
 # python3-saml>=1.16
+# Optional: Postgres engine
+# psycopg2-binary>=2.9
+# Optional: pgvector embeddings (Postgres only — needs the `pgvector` extension installed)
+# pgvector>=0.2

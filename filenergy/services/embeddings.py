@@ -58,10 +58,24 @@ def search(
     """Return the top-k chunks ranked by cosine similarity.
 
     Optionally narrows the candidate set to a single collection or a
-    single file so users can ask scoped questions.
+    single file so users can ask scoped questions. When pgvector is
+    available this delegates to a server-side ORDER BY query; otherwise
+    we cosine-rank in-process via numpy.
     """
     if not is_configured() or workspace is None:
         return []
+
+    # Fast path: pgvector. Falls back to the JSON+numpy path on any error.
+    try:
+        from filenergy.services import pgvector_store
+        if pgvector_store.is_available():
+            query_vec = embed_query(query)
+            return pgvector_store.knn_search(
+                workspace, query_vec, k,
+                collection_id=collection_id, file_id=file_id,
+            )
+    except Exception:  # pragma: no cover — fall through to JSON path
+        pass
 
     q = (
         Chunk.query.join(File, Chunk.file_id == File.id)
