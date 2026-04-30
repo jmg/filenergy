@@ -29,6 +29,10 @@ CHUNK_SIZE = int(os.environ.get("FILENERGY_CHUNK_SIZE", 1200))
 CHUNK_OVERLAP = int(os.environ.get("FILENERGY_CHUNK_OVERLAP", 150))
 RETRIEVAL_K = int(os.environ.get("FILENERGY_RETRIEVAL_K", 6))
 
+# Rate limit: at most ASK_RATE_LIMIT /ask requests per ASK_RATE_WINDOW_SECONDS per user.
+ASK_RATE_LIMIT = int(os.environ.get("FILENERGY_ASK_RATE_LIMIT", 30))
+ASK_RATE_WINDOW_SECONDS = int(os.environ.get("FILENERGY_ASK_RATE_WINDOW", 60))
+
 
 FLASK_CONFIG = {
     "SECRET_KEY": SECRET_KEY,

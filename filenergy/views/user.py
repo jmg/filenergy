@@ -1,5 +1,6 @@
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
+from filenergy.services import events
 from filenergy.services.user import UserService
 
 user_bp = Blueprint("user", __name__)
@@ -15,10 +16,14 @@ def login_post():
     email = request.form["email"].strip()
     password = request.form["password"].strip()
 
-    error = UserService().login(email, password)
+    user_svc = UserService()
+    error = user_svc.login(email, password)
     if error:
         flash(error, "error")
         return redirect(url_for("user.login"))
+
+    user = user_svc.get_one(email=email)
+    events.log_event(events.USER_LOGGED_IN, user=user)
 
     return redirect(request.form.get("next") or url_for("index.index"))
 
@@ -34,15 +39,22 @@ def register_post():
     password = request.form["password"].strip()
     password_again = request.form["password_again"].strip()
 
-    error = UserService().register(email, password, password_again)
+    user_svc = UserService()
+    error = user_svc.register(email, password, password_again)
     if error:
         flash(error, "error")
         return redirect(url_for("user.register"))
+
+    user = user_svc.get_one(email=email)
+    events.log_event(events.USER_REGISTERED, user=user)
 
     return redirect(url_for("index.index"))
 
 
 @user_bp.route("/logout/")
 def logout():
+    user = g.user if g.user.is_authenticated else None
     UserService().logout()
+    if user is not None:
+        events.log_event(events.USER_LOGGED_OUT, user=user)
     return redirect(url_for("index.index"))

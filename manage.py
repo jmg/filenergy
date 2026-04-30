@@ -10,21 +10,19 @@ from __future__ import annotations
 import sys
 
 from filenergy import app, db
-from filenergy.models import Chunk, File, User
+from filenergy.models import File, User
 from filenergy.services.file import FileService
-from filenergy.services.user import UserService
 
 
 def cmd_reindex():
     with app.app_context():
         files = File.query.all()
-        FileService_ = FileService()
+        svc = FileService()
         for f in files:
             f.indexed_at = None
             f.index_error = None
-            Chunk.query.filter_by(file_id=f.id).delete()
             db.session.commit()
-            FileService_._index_file(f)
+            svc.index_file(f)
             print(f"reindexed: {f.name} ({'ok' if f.indexed_at else f.index_error})")
 
 

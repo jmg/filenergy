@@ -8,3 +8,5 @@ venv/
 filenergy.db
 files/
 .pytest_cache/
+.coverage
+htmlcov/

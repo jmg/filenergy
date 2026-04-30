@@ -1,51 +1,94 @@
 {% extends "base.html" %}
 
-{% block header %}Search Files{% endblock %}
+{% block header %}{% endblock %}
 
-{% block js %}
-<script type="text/javascript">
-
-function searchFiles(form) {
-
-    $.post("/file/search/", $(form).serialize(), function(response) {
-
-        var results = $("#results");
-
-        results.html(response);
-        results.hide();
-        results.slideDown();
-    });
-}
-
-function downloadFile(h) {
-
-    location.href = "/file/download/?h=" + h;
-}
-
-</script>
+{% block css %}
+<style>
+  .hero { padding: 40px 0 30px; text-align: center; }
+  .hero h1 { font-size: 44px; margin: 0 0 10px; line-height: 1.1; }
+  .hero p.lede { font-size: 18px; color: #555; max-width: 640px; margin: 0 auto 20px; }
+  .hero .cta { margin-top: 12px; }
+  .hero .cta .btn { margin: 0 6px; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; padding: 30px 0; }
+  .feature { padding: 18px; border: 1px solid #eee; border-radius: 8px; background: #fff; }
+  .feature h3 { margin: 0 0 8px; font-size: 16px; }
+  .feature p { color: #555; font-size: 14px; margin: 0; }
+  .how { background: #fafafa; padding: 24px; border-radius: 8px; margin: 20px 0; }
+  .how pre { background: transparent; border: 0; padding: 0; font-size: 13px; color: #444; }
+  .search-card { margin: 20px 0; padding: 16px; background: #fafafa; border-radius: 8px; }
+</style>
 {% endblock %}
 
 {% block content %}
 
-  <div class="row">
-
-    <form class="form-horizontal well" onsubmit="searchFiles(this); return false;">
-        <fieldset>
-
-          <div class="control-group">
-            <label class="control-label" for="search">File Name:</label>
-            <div class="controls">
-              <input class="input-file input-xlarge" id="search" type="text" name="name">
-              <button type="submit" class="btn btn-primary">Search</button>
-            </div>
-
-          </div>
-
-        </fieldset>
-      </form>
-
-      <div id="results" class="well hide"></div>
-
+<section class="hero">
+  <h1>Your files, but askable.</h1>
+  <p class="lede">
+    Filenergy is a private file host that indexes every PDF, doc, and note
+    you upload — then lets you chat with them. Powered by Claude.
+  </p>
+  <div class="cta">
+    {% if g.user.is_authenticated %}
+      <a class="btn btn-primary btn-large" href="/file/upload/">Upload a file</a>
+      <a class="btn btn-large" href="/ask/">Ask your library</a>
+    {% else %}
+      <a class="btn btn-primary btn-large" href="/user/register/">Get started — free</a>
+      <a class="btn btn-large" href="/user/login/">Log in</a>
+    {% endif %}
   </div>
+</section>
+
+<section class="features">
+  <div class="feature">
+    <h3>Drop in any document</h3>
+    <p>PDF, DOCX, Markdown, TXT, CSV, HTML. Filenergy extracts the text the moment it lands.</p>
+  </div>
+  <div class="feature">
+    <h3>Semantic search built in</h3>
+    <p>Voyage embeddings power retrieval. Ask in plain language; relevant excerpts surface in milliseconds.</p>
+  </div>
+  <div class="feature">
+    <h3>Chat with citations</h3>
+    <p>Claude answers questions using your files only — with links back to the source documents.</p>
+  </div>
+  <div class="feature">
+    <h3>Streaming responses</h3>
+    <p>Real-time token streaming via Server-Sent Events. No 10-second blocking calls.</p>
+  </div>
+  <div class="feature">
+    <h3>Conversation memory</h3>
+    <p>Multi-turn threads with persistent history. Pick up where you left off.</p>
+  </div>
+  <div class="feature">
+    <h3>Private by default</h3>
+    <p>Your files stay yours. Per-user isolation, hash-based share URLs, public-toggle per file.</p>
+  </div>
+</section>
+
+<section class="how">
+  <h3>How it works</h3>
+  <pre>upload  →  text extraction  →  chunk & embed (Voyage)  →  SQLite
+
+ask     →  embed query  →  cosine top-K  →  Claude (RAG)  →  cited answer</pre>
+</section>
+
+<section class="search-card">
+  <h4>Already have files? Search by name:</h4>
+  <form class="form-inline" onsubmit="searchFiles(this); return false;">
+    <input class="input-xlarge" type="text" name="name" placeholder="invoice, brief, meeting notes...">
+    <button type="submit" class="btn btn-primary">Search</button>
+  </form>
+  <div id="results" style="margin-top: 12px;"></div>
+</section>
+
+<script type="text/javascript">
+function searchFiles(form) {
+    $.post("/file/search/", $(form).serialize(), function(response) {
+        var results = $("#results");
+        results.html(response);
+    });
+}
+function downloadFile(h) { location.href = "/file/download/?h=" + h; }
+</script>
 
 {% endblock %}

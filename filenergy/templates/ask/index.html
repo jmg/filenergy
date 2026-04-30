@@ -1,87 +1,219 @@
 {% extends "base.html" %}
 
-{% block header %}Ask your library{% endblock %}
+{% block header %}{% endblock %}
 
 {% block css %}
 <style>
-  .chat { max-width: 760px; }
-  .chat .message { padding: 12px 14px; border-radius: 8px; margin-bottom: 10px; white-space: pre-wrap; }
-  .chat .message.user { background: #eef3f8; }
-  .chat .message.assistant { background: #f7f7f5; border: 1px solid #e6e6e2; }
-  .chat .sources { font-size: 12px; margin-top: 6px; color: #555; }
-  .chat .sources a { margin-right: 8px; }
-  .chat textarea { width: 100%; min-height: 70px; }
-  .chat .pending { font-style: italic; color: #888; }
-  .chat .config-warning { background: #fff8dc; border: 1px solid #e0d090; padding: 10px; margin-bottom: 12px; border-radius: 6px; }
+  .ask-shell { display: flex; gap: 20px; max-width: 1100px; }
+  .ask-side { width: 220px; flex-shrink: 0; }
+  .ask-side h4 { margin: 0 0 10px; font-size: 13px; color: #666; text-transform: uppercase; }
+  .ask-side .new { display: block; padding: 8px 12px; background: #2a4d8f; color: #fff; border-radius: 6px; text-align: center; margin-bottom: 12px; }
+  .ask-side .conv-link { display: block; padding: 8px 10px; border-radius: 4px; color: #333; font-size: 13px; line-height: 1.3; margin-bottom: 4px; text-decoration: none; }
+  .ask-side .conv-link:hover { background: #f0f0f0; }
+  .ask-side .conv-link.active { background: #e9eef5; font-weight: 500; }
+
+  .ask-main { flex: 1; }
+  .config-warning { background: #fff8dc; border: 1px solid #e0d090; padding: 10px; margin-bottom: 12px; border-radius: 6px; }
+
+  .thread { min-height: 320px; max-height: 60vh; overflow-y: auto; padding: 8px 4px 12px; }
+  .message { padding: 12px 14px; border-radius: 8px; margin-bottom: 10px; }
+  .message.user { background: #eef3f8; }
+  .message.assistant { background: #fafafa; border: 1px solid #eee; }
+  .message .body { white-space: pre-wrap; }
+  .message .body p { margin: 0 0 8px; }
+  .message .body p:last-child { margin-bottom: 0; }
+  .message .body code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+  .message .body pre { background: #f0f0f0; padding: 8px; border-radius: 4px; overflow-x: auto; }
+  .message .body ul, .message .body ol { margin: 6px 0 6px 22px; }
+  .message .body strong { font-weight: 600; }
+  .message .sources { font-size: 12px; margin-top: 8px; color: #555; }
+  .message .sources a { margin-right: 8px; }
+  .message .pending { font-style: italic; color: #888; }
+
+  form.ask-form textarea { width: 100%; min-height: 70px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+  form.ask-form .row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+  form.ask-form .row small { color: #888; }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<div class="chat well">
+<div class="ask-shell">
 
-  {% if not status.anthropic or not status.embeddings %}
-  <div class="config-warning">
-    Chat is not fully configured. You need both
-    <code>ANTHROPIC_API_KEY</code> (status: {% if status.anthropic %}OK{% else %}missing{% endif %})
-    and <code>VOYAGE_API_KEY</code> (status: {% if status.embeddings %}OK{% else %}missing{% endif %}).
-  </div>
-  {% endif %}
+  <aside class="ask-side">
+    <a class="new" href="/ask/">+ New conversation</a>
+    <h4>Recent</h4>
+    {% for c in conversations %}
+      <a class="conv-link {% if active_conversation and active_conversation.id == c.id %}active{% endif %}"
+         href="/ask/c/{{c.id}}">{{ c.title or 'Untitled' }}</a>
+    {% else %}
+      <p style="color:#aaa;font-size:13px;">No threads yet.</p>
+    {% endfor %}
+  </aside>
 
-  <div id="thread"></div>
+  <main class="ask-main">
 
-  <form id="ask-form" onsubmit="askQuestion(); return false;">
-    <textarea id="question" placeholder="Ask a question about the files you've uploaded..."></textarea>
-    <br>
-    <button type="submit" class="btn btn-primary">Ask</button>
-  </form>
+    {% if not status.anthropic or not status.embeddings %}
+    <div class="config-warning">
+      Chat is not fully configured. You need
+      <code>ANTHROPIC_API_KEY</code> ({% if status.anthropic %}OK{% else %}missing{% endif %})
+      and <code>VOYAGE_API_KEY</code> ({% if status.embeddings %}OK{% else %}missing{% endif %}).
+    </div>
+    {% endif %}
+
+    <div id="thread" class="thread"
+         data-conversation-id="{% if active_conversation %}{{active_conversation.id}}{% endif %}">
+      {% for m in (history or []) %}
+        <div class="message {{m.role}}">
+          <div class="body">{{ m.content }}</div>
+          {% if m.sources_json %}
+            <div class="sources" data-sources='{{ m.sources_json }}'>
+              {% set srcs = m.sources_json | safe %}
+              Sources:
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <form class="ask-form" id="ask-form" onsubmit="askQuestion(); return false;">
+      <textarea id="question" placeholder="Ask anything about your library..." required></textarea>
+      <div class="row">
+        <small>Streamed answers via SSE. Markdown is rendered. Press Cmd/Ctrl+Enter to send.</small>
+        <button type="submit" class="btn btn-primary">Send</button>
+      </div>
+    </form>
+
+  </main>
 </div>
 
 <script>
   function escapeHtml(s) {
-    return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Tiny markdown renderer: bold, italic, code, lists, line breaks. Good enough.
+  function renderMarkdown(text) {
+    var html = escapeHtml(text);
+    html = html.replace(/```([\s\S]*?)```/g, function(_, c){ return '<pre>'+c.trim()+'</pre>'; });
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    html = html.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/(^|\n)- (.*)/g, '$1<li>$2</li>');
+    html = html.replace(/(<li>[\s\S]*?<\/li>)(\n(?!<li>)|$)/g, '<ul>$1</ul>$2');
+    html = html.split(/\n\n+/).map(function(p){ return /^<(ul|pre|h\d)/.test(p) ? p : '<p>'+p.replace(/\n/g,'<br>')+'</p>'; }).join('');
+    return html;
+  }
+
+  function getConversationId() {
+    return $('#thread').data('conversation-id') || null;
+  }
+
+  function setConversationId(id) {
+    $('#thread').data('conversation-id', id);
   }
 
   function appendMessage(role, html) {
-    var el = $('<div class="message"></div>').addClass(role).html(html);
-    $('#thread').append(el);
-    el[0].scrollIntoView({ behavior: "smooth", block: "end" });
-    return el;
+    var $el = $('<div class="message"></div>').addClass(role);
+    $el.append('<div class="body">'+html+'</div>');
+    $('#thread').append($el);
+    $el[0].scrollIntoView({behavior:'smooth', block:'end'});
+    return $el;
+  }
+
+  function appendSources($msg, sources) {
+    if (!sources || !sources.length) return;
+    var html = sources.map(function(s){
+      return '<a href="/file/download/?h='+encodeURIComponent(s.url)+'">'+escapeHtml(s.name)+'</a>';
+    }).join('');
+    $msg.append('<div class="sources">Sources: '+html+'</div>');
   }
 
   function askQuestion() {
     var $q = $('#question');
     var question = $q.val().trim();
     if (!question) return;
-    $q.val('');
+    $q.val('').prop('disabled', true);
+    $('#ask-form button').prop('disabled', true);
 
     appendMessage('user', escapeHtml(question));
-    var pending = appendMessage('assistant', '<span class="pending">Thinking...</span>');
+    var $assistant = appendMessage('assistant', '<span class="pending">Thinking...</span>');
 
-    $.ajax({
-      url: '/ask/',
-      method: 'POST',
-      contentType: 'application/json',
-      data: JSON.stringify({ question: question }),
-    }).done(function (data) {
-      var html = escapeHtml(data.answer);
-      if (data.sources && data.sources.length) {
-        var srcs = data.sources.map(function (s) {
-          return '<a href="/file/download/?h=' + encodeURIComponent(s.url) + '">'
-            + escapeHtml(s.name) + '</a>';
-        }).join('');
-        html += '<div class="sources">Sources: ' + srcs + '</div>';
+    var payload = JSON.stringify({question: question, conversation_id: getConversationId()});
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/ask/stream');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Accept', 'text/event-stream');
+
+    var buffer = '';
+    var fullText = '';
+    var sources = [];
+
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState < 3) return;
+      var newData = xhr.responseText.substr(buffer.length);
+      buffer = xhr.responseText;
+      newData.split('\n\n').forEach(function(block) {
+        if (!block.trim()) return;
+        var ev = '', data = '';
+        block.split('\n').forEach(function(line) {
+          if (line.startsWith('event: ')) ev = line.slice(7);
+          else if (line.startsWith('data: ')) data += line.slice(6);
+        });
+        if (!ev) return;
+        var parsed = {};
+        try { parsed = JSON.parse(data); } catch(e) {}
+        if (ev === 'meta' && parsed.conversation_id) {
+          setConversationId(parsed.conversation_id);
+        } else if (ev === 'token') {
+          fullText += parsed.text || '';
+          $assistant.find('.body').html(renderMarkdown(fullText));
+        } else if (ev === 'done') {
+          if (parsed.text) {
+            fullText = parsed.text;
+            $assistant.find('.body').html(renderMarkdown(fullText));
+          }
+          sources = parsed.sources || [];
+          appendSources($assistant, sources);
+        } else if (ev === 'error') {
+          $assistant.find('.body').html('<span style="color:#a00">'+escapeHtml(parsed.message || 'error')+'</span>');
+        }
+      });
+      if (xhr.readyState === 4) {
+        $q.prop('disabled', false).focus();
+        $('#ask-form button').prop('disabled', false);
       }
-      pending.html(html);
-    }).fail(function (xhr) {
-      var msg = (xhr.responseJSON && xhr.responseJSON.error) || 'Request failed.';
-      pending.html('<span style="color:#a00">' + escapeHtml(msg) + '</span>');
-    });
+    };
+
+    xhr.onerror = function() {
+      $assistant.find('.body').html('<span style="color:#a00">Network error.</span>');
+      $q.prop('disabled', false);
+      $('#ask-form button').prop('disabled', false);
+    };
+    xhr.send(payload);
   }
+
+  $('#question').on('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { askQuestion(); }
+  });
+
+  // Render saved sources from history (if present in templates).
+  $('.message .sources[data-sources]').each(function() {
+    var $el = $(this);
+    try {
+      var sources = JSON.parse($el.attr('data-sources'));
+      var html = 'Sources: ' + sources.map(function(s){
+        return '<a href="/file/download/?h='+encodeURIComponent(s.url)+'">'+escapeHtml(s.name)+'</a>';
+      }).join(' ');
+      $el.html(html);
+    } catch(e) {}
+  });
+  // Re-render history bodies through the markdown renderer.
+  $('.message .body').each(function() {
+    var $b = $(this);
+    if ($b.children().length === 0) { // only plain text
+      $b.html(renderMarkdown($b.text()));
+    }
+  });
 </script>
 
 {% endblock %}
