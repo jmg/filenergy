@@ -3,7 +3,7 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 from flask_login import login_required
 
 from filenergy import settings as cfg
-from filenergy.services import api_keys, billing, events, workspaces
+from filenergy.services import api_keys, billing, events, webhooks, workspaces
 
 settings_bp = Blueprint("settings", __name__)
 
@@ -98,6 +98,54 @@ def billing_page():
         stripe_configured=billing.is_configured(),
         current_plan=g.workspace.plan or "free",
     )
+
+
+@settings_bp.route("/webhooks")
+@login_required
+def webhooks_page():
+    return render_template(
+        "settings/webhooks.html",
+        subscriptions=webhooks.list_for_workspace(g.workspace),
+    )
+
+
+@settings_bp.route("/webhooks", methods=["POST"])
+@login_required
+def create_webhook():
+    url = (request.form.get("url") or "").strip()
+    selected_events = request.form.getlist("events")
+    if not url or not url.startswith(("http://", "https://")):
+        flash("URL must be http(s)://...", "error")
+        return redirect(url_for("settings.webhooks_page"))
+    if not selected_events:
+        flash("Pick at least one event type", "error")
+        return redirect(url_for("settings.webhooks_page"))
+    sub, secret = webhooks.create(g.workspace, url, selected_events)
+    flash(
+        f"Webhook created. Save its signing secret now — it won't be shown again: {secret}",
+        "success",
+    )
+    return redirect(url_for("settings.webhooks_page"))
+
+
+@settings_bp.route("/webhooks/<int:sub_id>/delete", methods=["POST"])
+@login_required
+def delete_webhook(sub_id):
+    sub = webhooks.get(g.workspace, sub_id)
+    if sub is None:
+        return "Not found", 404
+    webhooks.delete(sub)
+    return redirect(url_for("settings.webhooks_page"))
+
+
+@settings_bp.route("/webhooks/<int:sub_id>/toggle", methods=["POST"])
+@login_required
+def toggle_webhook(sub_id):
+    sub = webhooks.get(g.workspace, sub_id)
+    if sub is None:
+        return "Not found", 404
+    webhooks.set_enabled(sub, not sub.enabled)
+    return redirect(url_for("settings.webhooks_page"))
 
 
 @settings_bp.route("/billing/checkout", methods=["POST"])

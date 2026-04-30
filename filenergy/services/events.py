@@ -56,6 +56,20 @@ BILLING_CHECKOUT_STARTED = "billing.checkout_started"
 BILLING_SUBSCRIPTION_UPDATED = "billing.subscription_updated"
 
 
+# Subset of events that fire outbound webhooks. Internal/noisy types
+# (e.g. ASK_QUESTION which fires once per keystroke-batch) are excluded.
+WEBHOOK_EVENT_TYPES = {
+    "file.uploaded",
+    "file.indexed",
+    "file.index_failed",
+    "file.deleted",
+    "file.shared",
+    "ask.answered",
+    "workspace.member_joined",
+    "billing.subscription_updated",
+}
+
+
 def log_event(type_: str, user=None, workspace_id: int | None = None,
               **metadata: Any) -> Event:
     """Persist one event. Never raises."""
@@ -68,11 +82,24 @@ def log_event(type_: str, user=None, workspace_id: int | None = None,
         )
         db.session.add(event)
         db.session.commit()
-        return event
     except Exception:
         log.exception("Failed to log event %s", type_)
         db.session.rollback()
         return None  # type: ignore[return-value]
+
+    if workspace_id is not None and type_ in WEBHOOK_EVENT_TYPES:
+        try:
+            from filenergy.services import webhooks  # local — avoid cycle
+            webhooks.dispatch(workspace_id, type_, {
+                "event_id": event.id,
+                "type": type_,
+                "user_id": event.user_id,
+                "metadata": metadata,
+                "created_at": event.created_at.isoformat() if event.created_at else None,
+            })
+        except Exception:
+            log.exception("Webhook dispatch failed for %s", type_)
+    return event
 
 
 def count_recent(user, type_: str, since_seconds: int,

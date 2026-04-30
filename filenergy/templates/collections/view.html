@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block header %}{{ collection.name }}{% endblock %}
+
+{% block content %}
+<div class="row" style="max-width:900px;margin:auto;">
+  <p>
+    <a class="btn btn-primary" href="{{ url_for('ask.index', collection=collection.slug) }}">
+      Ask this collection
+    </a>
+    <a class="btn" href="{{ url_for('collections.list_collections') }}">All collections</a>
+  </p>
+  {% if collection.description %}
+    <p style="color:#666">{{ collection.description }}</p>
+  {% endif %}
+
+  <h4>{{ files|length }} file{{ '' if files|length == 1 else 's' }}</h4>
+  {% if files %}
+    <ul style="list-style:none;padding:0;">
+    {% for f in files %}
+      <li style="padding:8px 0;border-bottom:1px solid #eee;">
+        <a href="{{ url_for('file.detail', file_id=f.id) }}">{{ f.name }}</a>
+        <span style="color:#888;font-size:12px;">· {{ f.index_status }} ·
+          {{ "%.1f"|format((f.size_bytes or 0) / 1024) }} KB</span>
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <p style="color:#888;">No files in this collection yet. Upload a file and assign it from its detail page.</p>
+  {% endif %}
+
+  <hr>
+  <details>
+    <summary>Manage</summary>
+    <form method="POST" action="{{ url_for('collections.rename', slug=collection.slug) }}" style="margin-top:8px;">
+      <input type="text" name="name" value="{{ collection.name }}">
+      <button class="btn" type="submit">Rename</button>
+    </form>
+    <form method="POST" action="{{ url_for('collections.delete', slug=collection.slug) }}"
+          onsubmit="return confirm('Delete this collection? Files inside will become uncategorized.');">
+      <button class="btn btn-danger" type="submit">Delete collection</button>
+    </form>
+  </details>
+</div>
+{% endblock %}

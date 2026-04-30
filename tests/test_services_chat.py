@@ -24,7 +24,7 @@ def _make_chunk(db, user, workspace, content="hello"):
 
 
 def test_answer_question_no_results_returns_message(db, workspace, monkeypatch):
-    monkeypatch.setattr(embeddings, "search", lambda w, q, k: [])
+    monkeypatch.setattr(embeddings, "search", lambda w, q, k, **kw: [])
     answer = chat.answer_question(workspace, "Where?")
     assert "No matching content" in answer.text
     assert answer.sources == []
@@ -67,7 +67,7 @@ def test_stream_answer_emits_token_and_done_events(db, user, workspace, _stub_ex
 
 
 def test_stream_answer_no_results(db, workspace, monkeypatch):
-    monkeypatch.setattr(embeddings, "search", lambda w, q, k: [])
+    monkeypatch.setattr(embeddings, "search", lambda w, q, k, **kw: [])
     events = list(chat.stream_answer(workspace, "?"))
     assert events[0].startswith("event: token")
     assert "No matching content" in events[0]
@@ -79,6 +79,7 @@ def test_stream_answer_handles_search_error(db, workspace, monkeypatch):
         raise RuntimeError("voyage down")
 
     monkeypatch.setattr(embeddings, "search", boom)
+    # Also clear the cached _retrieve helper if any.
     events = list(chat.stream_answer(workspace, "?"))
     assert events[0].startswith("event: error")
 

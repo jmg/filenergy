@@ -6,7 +6,7 @@ import threading
 
 from filenergy import app, db, settings
 from filenergy.models import Chunk, File, utcnow
-from filenergy.services import embeddings, events, extraction
+from filenergy.services import embeddings, enrichment, events, extraction
 from filenergy.services.base import BaseService
 
 log = logging.getLogger(__name__)
@@ -146,6 +146,9 @@ class FileService(BaseService):
                 file_id=db_file.id,
                 chunks=len(chunks),
             )
+            # Best-effort enrichment: summary + suggested questions.
+            # Failures don't unindex the file.
+            enrichment.enrich_file(db_file)
             return True
         except Exception as exc:
             log.exception("Indexing failed for %s", db_file.name)

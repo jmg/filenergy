@@ -168,10 +168,15 @@ class File(BaseModel):
     indexed_at = db.Column(db.DateTime, nullable=True)
     index_error = db.Column(db.Text, nullable=True)
     text_content = db.Column(db.Text, nullable=True)
+    summary = db.Column(db.Text, nullable=True)
+    suggested_questions_json = db.Column(db.Text, nullable=True)
 
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     workspace_id = db.Column(
         db.Integer, db.ForeignKey("workspace.id"), index=True
+    )
+    collection_id = db.Column(
+        db.Integer, db.ForeignKey("collection.id"), nullable=True, index=True
     )
 
     user = db.relationship(
@@ -195,6 +200,41 @@ class File(BaseModel):
         if self.index_error:
             return "error"
         return "pending"
+
+    @property
+    def suggested_questions(self) -> list:
+        import json
+        if not self.suggested_questions_json:
+            return []
+        try:
+            return json.loads(self.suggested_questions_json)
+        except Exception:
+            return []
+
+
+class Collection(BaseModel):
+    """A folder/notebook within a workspace.
+
+    Files can belong to one collection or none. Retrieval can be scoped
+    to a collection so users can chat with a subset of their library.
+    """
+
+    __tablename__ = "collection"
+    __table_args__ = (
+        db.UniqueConstraint("workspace_id", "slug", name="uq_collection_slug"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey("workspace.id"), index=True)
+    name = db.Column(db.String(120))
+    slug = db.Column(db.String(64), index=True)
+    description = db.Column(db.Text, nullable=True)
+
+    workspace = db.relationship("Workspace")
+    files = db.relationship(
+        "File", backref="collection", lazy="dynamic",
+        foreign_keys="File.collection_id",
+    )
 
 
 class Chunk(BaseModel):
@@ -320,3 +360,50 @@ class ShareLink(BaseModel):
         ) >= self.max_downloads:
             return False
         return True
+
+
+class WebhookSubscription(BaseModel):
+    """Outbound webhook target. Customer registers a URL + secret for HMAC."""
+
+    __tablename__ = "webhook_subscription"
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey("workspace.id"), index=True)
+    url = db.Column(db.String(2000))
+    secret = db.Column(db.String(128))
+    events_json = db.Column(db.Text)
+    enabled = db.Column(db.Boolean(), default=True)
+    last_status = db.Column(db.Integer, nullable=True)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    failure_count = db.Column(db.Integer, default=0)
+
+    workspace = db.relationship("Workspace")
+    deliveries = db.relationship(
+        "WebhookDelivery", backref="subscription", lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def event_types(self) -> list[str]:
+        import json
+        try:
+            return json.loads(self.events_json or "[]")
+        except Exception:
+            return []
+
+
+class WebhookDelivery(BaseModel):
+    """One attempted webhook delivery, success or failure."""
+
+    __tablename__ = "webhook_delivery"
+
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(
+        db.Integer, db.ForeignKey("webhook_subscription.id"), index=True
+    )
+    event_type = db.Column(db.String(64))
+    payload_json = db.Column(db.Text)
+    response_status = db.Column(db.Integer, nullable=True)
+    response_body = db.Column(db.Text, nullable=True)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    error = db.Column(db.Text, nullable=True)

@@ -4,10 +4,25 @@ from flask import Blueprint, g, jsonify, make_response, render_template, request
 from flask_login import login_required
 
 from filenergy.models import File
-from filenergy.services import billing, events, share_links
+from filenergy.services import billing, collections, events, share_links
 from filenergy.services.file import FileService
 
 file_bp = Blueprint("file", __name__)
+
+
+@file_bp.route("/<int:file_id>")
+@login_required
+def detail(file_id):
+    from flask import abort
+    f = File.query.filter_by(id=file_id, workspace_id=g.workspace.id).first()
+    if f is None:
+        abort(404)
+    return render_template(
+        "file/detail.html",
+        file=f,
+        all_collections=collections.list_for_workspace(g.workspace),
+        share_links_active=share_links.list_for_file(f),
+    )
 
 
 @file_bp.route("/list/")

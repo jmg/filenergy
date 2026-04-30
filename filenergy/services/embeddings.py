@@ -51,17 +51,28 @@ def embed_query(text: str) -> list[float]:
     return response.embeddings[0]
 
 
-def search(workspace, query: str, k: int) -> list[tuple[Chunk, float]]:
-    """Return the top-k chunks in the workspace, ranked by cosine similarity."""
+def search(
+    workspace, query: str, k: int,
+    *, collection_id: int | None = None, file_id: int | None = None,
+) -> list[tuple[Chunk, float]]:
+    """Return the top-k chunks ranked by cosine similarity.
+
+    Optionally narrows the candidate set to a single collection or a
+    single file so users can ask scoped questions.
+    """
     if not is_configured() or workspace is None:
         return []
 
-    rows = (
+    q = (
         Chunk.query.join(File, Chunk.file_id == File.id)
         .filter(File.workspace_id == workspace.id)
         .filter(Chunk.embedding.isnot(None))
-        .all()
     )
+    if file_id is not None:
+        q = q.filter(File.id == file_id)
+    elif collection_id is not None:
+        q = q.filter(File.collection_id == collection_id)
+    rows = q.all()
     if not rows:
         return []
 

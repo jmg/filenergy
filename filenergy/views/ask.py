@@ -14,6 +14,7 @@ from flask_login import login_required
 from filenergy.services import (
     billing,
     chat,
+    collections,
     conversations,
     embeddings,
     events,
@@ -34,12 +35,24 @@ def _ask_status():
 @login_required
 def index():
     convs = conversations.list_for_user(g.user, g.workspace)
+    coll_slug = request.args.get("collection")
+    file_id = request.args.get("file_id")
+    scope_collection = collections.get_by_slug(g.workspace, coll_slug) if coll_slug else None
+    scope_file = None
+    if file_id and file_id.isdigit():
+        from filenergy.models import File
+        scope_file = File.query.filter_by(
+            id=int(file_id), workspace_id=g.workspace.id
+        ).first()
     return render_template(
         "ask/index.html",
         status=_ask_status(),
         conversations=convs,
         active_conversation=None,
         usage=billing.usage_summary(g.workspace),
+        scope_collection=scope_collection,
+        scope_file=scope_file,
+        all_collections=collections.list_for_workspace(g.workspace),
     )
 
 
@@ -61,6 +74,9 @@ def view_conversation(conversation_id):
         active_conversation=conv,
         history=list(conv.messages),
         usage=billing.usage_summary(g.workspace),
+        scope_collection=None,
+        scope_file=None,
+        all_collections=collections.list_for_workspace(g.workspace),
     )
 
 
@@ -70,6 +86,38 @@ def _coerce_conversation_id(payload):
         return int(cid) if cid else None
     except (TypeError, ValueError):
         return None
+
+
+def _coerce_scope(payload):
+    """Optional scope: file_id (single file) OR collection_id."""
+    file_id = payload.get("file_id")
+    coll_id = payload.get("collection_id")
+    try:
+        file_id = int(file_id) if file_id else None
+    except (TypeError, ValueError):
+        file_id = None
+    try:
+        coll_id = int(coll_id) if coll_id else None
+    except (TypeError, ValueError):
+        coll_id = None
+    return coll_id, file_id
+
+
+def _validate_scope(workspace, collection_id, file_id):
+    """Reject scope IDs that aren't part of this workspace."""
+    from filenergy.models import Collection, File
+
+    if collection_id is not None:
+        if Collection.query.filter_by(
+            id=collection_id, workspace_id=workspace.id
+        ).first() is None:
+            return False
+    if file_id is not None:
+        if File.query.filter_by(
+            id=file_id, workspace_id=workspace.id
+        ).first() is None:
+            return False
+    return True
 
 
 @ask_bp.route("/", methods=["POST"])
@@ -109,6 +157,10 @@ def ask():
         resp.headers["Retry-After"] = str(exc.retry_after)
         return resp
 
+    coll_id, file_id = _coerce_scope(payload)
+    if not _validate_scope(g.workspace, coll_id, file_id):
+        return jsonify(error="Scope not in this workspace"), 404
+
     conversation = conversations.get_or_create(
         g.user, g.workspace, _coerce_conversation_id(payload)
     )
@@ -120,10 +172,15 @@ def ask():
         workspace_id=g.workspace.id,
         conversation_id=conversation.id,
         question_chars=len(question),
+        collection_id=coll_id,
+        file_id=file_id,
     )
 
     try:
-        answer = chat.answer_question(g.workspace, question, history=history)
+        answer = chat.answer_question(
+            g.workspace, question, history=history,
+            collection_id=coll_id, file_id=file_id,
+        )
     except chat.ChatUnavailable as exc:
         events.log_event(
             events.ASK_FAILED,
@@ -188,6 +245,10 @@ def ask_stream():
         resp.headers["Retry-After"] = str(exc.retry_after)
         return resp
 
+    coll_id, file_id = _coerce_scope(payload)
+    if not _validate_scope(g.workspace, coll_id, file_id):
+        return jsonify(error="Scope not in this workspace"), 404
+
     conversation = conversations.get_or_create(
         g.user, g.workspace, _coerce_conversation_id(payload)
     )
@@ -202,10 +263,14 @@ def ask_stream():
         workspace_id=g.workspace.id,
         conversation_id=conversation.id,
         question_chars=len(question),
+        collection_id=coll_id,
+        file_id=file_id,
     )
     user_id = g.user.id
     workspace_id = g.workspace.id
     conv_id = conversation.id
+    scope_collection_id = coll_id
+    scope_file_id = file_id
 
     def generate():
         yield chat._sse("meta", {"conversation_id": conv_id})
@@ -226,7 +291,8 @@ def ask_stream():
         full_text_parts: list[str] = []
         sources_payload: list[dict] = []
         for chunk_str in chat.stream_answer(
-            workspace_obj, question, history=history_objs_local
+            workspace_obj, question, history=history_objs_local,
+            collection_id=scope_collection_id, file_id=scope_file_id,
         ):
             yield chunk_str
             if chunk_str.startswith("event: token"):

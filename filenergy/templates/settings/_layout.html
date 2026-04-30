@@ -32,6 +32,8 @@
     <a href="{{ url_for('settings.profile') }}" class="{% if request.endpoint == 'settings.profile' %}active{% endif %}">Profile</a>
     <a href="{{ url_for('settings.workspace') }}" class="{% if request.endpoint == 'settings.workspace' %}active{% endif %}">Workspace</a>
     <a href="{{ url_for('settings.keys') }}" class="{% if request.endpoint == 'settings.keys' %}active{% endif %}">API keys</a>
+    <a href="{{ url_for('settings.webhooks_page') }}" class="{% if request.endpoint and 'webhook' in request.endpoint %}active{% endif %}">Webhooks</a>
+    <a href="{{ url_for('audit.index') }}" class="{% if request.endpoint and 'audit' in request.endpoint %}active{% endif %}">Audit log</a>
     <a href="{{ url_for('settings.billing_page') }}" class="{% if request.endpoint == 'settings.billing_page' %}active{% endif %}">Billing & usage</a>
   </aside>
   <main class="settings-main">
