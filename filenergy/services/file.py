@@ -2,7 +2,6 @@ import hashlib
 import json
 import logging
 import os
-import threading
 
 from filenergy import app, db, settings
 from filenergy.models import Chunk, File, utcnow

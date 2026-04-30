@@ -8,10 +8,9 @@ work since they're DB-only.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from filenergy import db, settings
-from filenergy.models import Event, File, Workspace, utcnow
+from filenergy.models import Event, File, Workspace
 
 log = logging.getLogger(__name__)
 

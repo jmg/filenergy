@@ -20,10 +20,8 @@ import json
 import logging
 from typing import Any
 
-import numpy as np
-
 from filenergy import db
-from filenergy.models import Chunk, File
+from filenergy.models import Chunk
 
 log = logging.getLogger(__name__)
 
