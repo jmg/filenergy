@@ -33,6 +33,10 @@ RETRIEVAL_K = int(os.environ.get("FILENERGY_RETRIEVAL_K", 6))
 ASK_RATE_LIMIT = int(os.environ.get("FILENERGY_ASK_RATE_LIMIT", 30))
 ASK_RATE_WINDOW_SECONDS = int(os.environ.get("FILENERGY_ASK_RATE_WINDOW", 60))
 
+# Login: at most LOGIN_RATE_LIMIT failed attempts per LOGIN_RATE_WINDOW_SECONDS per email.
+LOGIN_RATE_LIMIT = int(os.environ.get("FILENERGY_LOGIN_RATE_LIMIT", 10))
+LOGIN_RATE_WINDOW_SECONDS = int(os.environ.get("FILENERGY_LOGIN_RATE_WINDOW", 300))
+
 # When True, run indexing in-line on the request thread. Tests force this on.
 SYNC_INDEXING = os.environ.get("FILENERGY_SYNC_INDEXING", "false").lower() == "true"
 

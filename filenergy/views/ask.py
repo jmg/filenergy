@@ -350,6 +350,51 @@ def delete_conversation(conversation_id):
     return jsonify(error="Conversation not found"), 404
 
 
+@ask_bp.route("/c/<int:conversation_id>/share", methods=["POST"])
+@login_required
+def share_conversation(conversation_id):
+    """Mint a public read-only link to this conversation."""
+    from filenergy.models import Conversation
+    from filenergy.services import conversation_shares
+
+    conv = Conversation.query.filter_by(
+        id=conversation_id, user_id=g.user.id, workspace_id=g.workspace.id,
+    ).first()
+    if conv is None:
+        return jsonify(error="Not found"), 404
+    ttl_raw = (request.form.get("ttl_hours") or
+               (request.get_json(silent=True) or {}).get("ttl_hours"))
+    try:
+        ttl = int(ttl_raw) if ttl_raw else None
+    except (TypeError, ValueError):
+        ttl = None
+    link = conversation_shares.create(conv, created_by=g.user, ttl_hours=ttl)
+    return jsonify(token=link.token, url=f"/sc/{link.token}",
+                   expires_at=link.expires_at.isoformat() if link.expires_at else None)
+
+
+@ask_bp.route("/c/<int:conversation_id>/share/<int:link_id>/revoke", methods=["POST"])
+@login_required
+def revoke_conversation_share(conversation_id, link_id):
+    from filenergy.models import Conversation, ConversationShareLink
+    from filenergy.services import conversation_shares
+
+    link = (
+        ConversationShareLink.query.join(Conversation)
+        .filter(
+            ConversationShareLink.id == link_id,
+            Conversation.id == conversation_id,
+            Conversation.user_id == g.user.id,
+            Conversation.workspace_id == g.workspace.id,
+        )
+        .first()
+    )
+    if link is None:
+        return jsonify(error="Not found"), 404
+    conversation_shares.revoke(link)
+    return jsonify(ok=True)
+
+
 def _conversation_for_export(conversation_id):
     from filenergy.models import Conversation
     return Conversation.query.filter_by(

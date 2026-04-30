@@ -15,7 +15,7 @@
 <div class="card">
   <h3>Step 2 — Confirm with a code</h3>
   <form method="POST" action="{{ url_for('settings.totp_enable') }}">
-    <p><input type="text" name="code" inputmode="numeric"
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p><input type="text" name="code" inputmode="numeric"
               placeholder="6-digit code" required class="input-xlarge"></p>
     <button class="btn btn-primary" type="submit">Enable 2FA</button>
     <a class="btn" href="{{ url_for('settings.security') }}">Cancel</a>

@@ -63,6 +63,43 @@ def detail(file_id):
     )
 
 
+@file_bp.route("/chunk/<int:chunk_id>/context")
+@login_required
+def chunk_context(chunk_id):
+    """Return the cited chunk + N chars of leading/trailing context.
+
+    Powers the "see this paragraph in the source" tooltip on the
+    dashboard's Most-cited chunks panel.
+    """
+    from filenergy.models import Chunk
+
+    chunk = (
+        Chunk.query.join(File, Chunk.file_id == File.id)
+        .filter(Chunk.id == chunk_id, File.workspace_id == g.workspace.id)
+        .first()
+    )
+    if chunk is None:
+        return jsonify(error="Not found"), 404
+    f = chunk.file
+    text = f.text_content or ""
+    pad = 280
+    start = max(0, (chunk.char_offset_start or 0) - pad)
+    end = min(len(text), (chunk.char_offset_end or len(text)) + pad)
+    before = text[start:(chunk.char_offset_start or 0)]
+    cited = text[(chunk.char_offset_start or 0):(chunk.char_offset_end or 0)]
+    after = text[(chunk.char_offset_end or 0):end]
+    return jsonify(
+        file_id=f.id,
+        file_name=f.name,
+        position=chunk.position,
+        before=before,
+        cited=cited or chunk.content,
+        after=after,
+        truncated_left=start > 0,
+        truncated_right=end < len(text),
+    )
+
+
 @file_bp.route("/list/")
 @login_required
 def list_files():

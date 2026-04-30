@@ -3,7 +3,10 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 from flask_login import login_required
 
 from filenergy import db, settings as cfg
-from filenergy.services import api_keys, billing, events, totp, webhooks, workspaces
+from filenergy.services import (
+    api_keys, billing, events, sessions as session_service,
+    totp, webhooks, workspaces,
+)
 
 settings_bp = Blueprint("settings", __name__)
 
@@ -52,10 +55,14 @@ def keys():
 @login_required
 def create_key():
     name = request.form.get("name", "").strip() or "Untitled"
-    record, plaintext = api_keys.mint(g.workspace, g.user, name)
+    scopes = request.form.getlist("scopes")
+    record, plaintext = api_keys.mint(
+        g.workspace, g.user, name, scopes=scopes,
+    )
     events.log_event(
         events.API_KEY_CREATED,
         user=g.user, workspace_id=g.workspace.id, key_id=record.id, name=name,
+        scopes=record.scopes,
     )
     flash(
         f"Key created. Save it now — it won't be shown again: {plaintext}",
@@ -103,11 +110,36 @@ def billing_page():
 @settings_bp.route("/security")
 @login_required
 def security():
+    current_session = session_service.current()
     return render_template(
         "settings/security.html",
         totp_enabled=g.user.totp_enabled,
         has_pending_setup=bool(g.user.totp_secret) and not g.user.totp_enabled,
+        active_sessions=session_service.list_active(g.user),
+        current_session_id=current_session.id if current_session else None,
     )
+
+
+@settings_bp.route("/security/sessions/<int:session_id>/revoke", methods=["POST"])
+@login_required
+def revoke_session(session_id):
+    if session_service.revoke(g.user, session_id):
+        events.log_event(
+            events.USER_SESSION_REVOKED, user=g.user, session_id=session_id,
+        )
+        flash("Session revoked.", "success")
+    return redirect(url_for("settings.security"))
+
+
+@settings_bp.route("/security/sessions/revoke-others", methods=["POST"])
+@login_required
+def revoke_other_sessions():
+    n = session_service.revoke_all_others(g.user)
+    events.log_event(
+        events.USER_SESSION_REVOKED, user=g.user, count=n, scope="others",
+    )
+    flash(f"Logged out {n} other session{'s' if n != 1 else ''}.", "success")
+    return redirect(url_for("settings.security"))
 
 
 @settings_bp.route("/security/totp/start", methods=["POST"])

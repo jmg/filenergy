@@ -76,14 +76,42 @@
       <li>
         <strong>{{ fname }}</strong>
         <span style="color:#888;">· chunk #{{ pos }} · {{ hits }} citations</span>
-        <div style="color:#555; font-size:13px; margin-top:2px;
+        <a href="#" class="show-context" data-chunk-id="{{ cid }}"
+           style="font-size:12px; margin-left:6px;">see in source →</a>
+        <div class="chunk-snippet" style="color:#555; font-size:13px; margin-top:2px;
                     overflow:hidden; text-overflow:ellipsis;
                     white-space:nowrap; max-width:100%;">
           {{ (content or '')[:200] }}{% if content and content|length > 200 %}…{% endif %}
         </div>
+        <div class="chunk-context" style="display:none; margin-top:6px; padding:8px;
+                    background:#fafafa; border:1px solid #eee; border-radius:4px;
+                    font-size:12px; line-height:1.45; max-height:240px; overflow:auto;">
+        </div>
       </li>
     {% endfor %}
   </ul>
+
+  <script>
+    $('.show-context').on('click', function(e) {
+      e.preventDefault();
+      var $li = $(this).closest('li');
+      var $ctx = $li.find('.chunk-context');
+      if ($ctx.is(':visible')) { $ctx.hide(); return; }
+      var cid = $(this).data('chunk-id');
+      $.get('/file/chunk/' + cid + '/context', function(data) {
+        function esc(s) { return $('<div>').text(s).html(); }
+        var html = '';
+        if (data.truncated_left) html += '<span style="color:#aaa">…</span>';
+        html += esc(data.before);
+        html += '<mark style="background:#ffe680">' + esc(data.cited) + '</mark>';
+        html += esc(data.after);
+        if (data.truncated_right) html += '<span style="color:#aaa">…</span>';
+        $ctx.html(html).show();
+      }).fail(function() {
+        $ctx.text('Could not load source context.').show();
+      });
+    });
+  </script>
   {% endif %}
 </div>
 {% endblock %}

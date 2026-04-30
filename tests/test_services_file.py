@@ -94,7 +94,7 @@ def test_index_file_handles_extraction_returning_none(
 
 def test_index_file_handles_empty_chunks(db, user, workspace, app, monkeypatch):
     monkeypatch.setattr(extraction, "extract_text", lambda path: "ok")
-    monkeypatch.setattr(extraction, "chunk_text", lambda *a, **k: [])
+    monkeypatch.setattr(extraction, "chunk_text_with_offsets", lambda *a, **k: [])
     req = _RequestStub(_UploadFile("a.txt", b"ok"))
     with app.test_request_context():
         FileService().save_file(req, user, workspace, sync_index=True)

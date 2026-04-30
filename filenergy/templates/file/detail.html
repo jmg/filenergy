@@ -36,7 +36,7 @@
 
   <h4>Move to collection</h4>
   <form method="POST" action="{{ url_for('collections.assign') }}">
-    <input type="hidden" name="file_id" value="{{ file.id }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="file_id" value="{{ file.id }}">
     <select name="collection_id">
       <option value="">— No collection —</option>
       {% for c in all_collections %}

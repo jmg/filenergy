@@ -4,12 +4,29 @@
 
   <head>
       <meta charset="utf-8">
+      <meta name="csrf-token" content="{{ csrf_token() }}">
       <title>File Energy</title>
       <link rel="shortcut icon" href="/static/img/logo.png"/>
 
       <script type="text/javascript" src="/static/js/jquery.min.js"></script>
       <link rel="stylesheet" type="text/css" media="screen" href="/static/css/bootstrap.min.css">
       <link rel="stylesheet" type="text/css" media="screen" href="/static/css/style.css">
+
+      <script type="text/javascript">
+        // Attach the CSRF token to every same-origin Ajax request so JSON
+        // POST bodies (delete, reindex, share, etc.) clear Flask-WTF.
+        $(function() {
+          var token = $('meta[name="csrf-token"]').attr('content');
+          $.ajaxSetup({
+            beforeSend: function(xhr, settings) {
+              if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type)
+                  && !/^https?:/.test(settings.url)) {
+                xhr.setRequestHeader('X-CSRFToken', token);
+              }
+            }
+          });
+        });
+      </script>
 
       {% block css %}
       {% endblock %}

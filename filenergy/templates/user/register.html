@@ -2,7 +2,7 @@
 
 {% block content %}
   <form action="/user/register/" method="post">
-    <h2>Signup </h2>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2>Signup </h2>
     <br>
 
     <div class="control-group">

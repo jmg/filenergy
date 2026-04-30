@@ -249,9 +249,66 @@ its native cursor primitive:
 - **Slack** — `oldest=<ts>`. New deltas are appended to the existing
   per-channel transcript file rather than written as fresh files.
 
+### Security hardening
+
+- **CSRF protection** on every browser POST via Flask-WTF. The
+  `/api/v1`, `/webhooks/stripe`, and `/saml/acs` blueprints opt out
+  because they authenticate with Bearer / HMAC / SAML signature, not
+  session cookies. JSON Ajax requests pick up the token from a
+  `<meta>` tag and send it as `X-CSRFToken`.
+- **Failed-login rate limit** keyed on the email being attempted.
+  Configurable via `FILENERGY_LOGIN_RATE_LIMIT` /
+  `FILENERGY_LOGIN_RATE_WINDOW`. Bucket per email so one attacker
+  can't lock out a real user.
+- **Security headers** on every response: `Strict-Transport-Security`,
+  `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`,
+  `Permissions-Policy`, and a `Content-Security-Policy` that allows
+  Bootstrap-3 inline scripts + the Swagger UI CDN. Set
+  `FILENERGY_DISABLE_HSTS=true` for plain-HTTP dev deploys.
+- **Session management** via a `UserSession` row per active browser.
+  `/settings/security` lists them with browser / IP / last-seen, lets
+  the user revoke any one, or "Log out of all other sessions". The
+  middleware refuses cookies whose row was revoked.
+
+### Conversation share links
+
+- `POST /ask/c/<id>/share` (or `POST /api/v1/conversations/<id>/share-links`)
+  mints a public read-only URL at `/sc/<token>`.
+- TTL via `ttl_hours`; revocable; `view_count` increments on every
+  successful landing render.
+
+### Source paragraph viewer
+
+- Indexer now stores `char_offset_start` / `char_offset_end` on every
+  Chunk so we can recover the exact span inside `File.text_content`.
+- `/file/chunk/<id>/context` returns the cited span + ~280 chars of
+  surrounding context. The dashboard's "Most-cited chunks" panel uses
+  it to expand a citation inline with the span highlighted.
+
+### Per-API-key scopes
+
+- `ApiKey.scopes` (e.g. `["files:read", "ask:write"]`) restricts which
+  endpoints a key can hit. Empty = full access (back-compat).
+- The `/settings/keys` mint form has checkboxes for every recognised
+  scope. `files:write` implies `files:read`.
+
+### `/api/v1` is now a real API
+
+In addition to `/files` and `/ask`:
+
+- `GET/POST/DELETE /api/v1/files/<id>`
+- `GET/POST/DELETE /api/v1/collections`, `PUT /api/v1/collections/<id>/files/<id>`
+- `GET /api/v1/conversations`, `GET/DELETE /api/v1/conversations/<id>`
+- `POST /api/v1/files/<id>/share-links`, `DELETE /api/v1/share-links/<id>`
+- `POST /api/v1/conversations/<id>/share-links`
+- `GET/POST/DELETE /api/v1/webhooks`
+- `GET /api/v1/members`, `POST /api/v1/invitations`
+
+Every endpoint enforces the relevant scope.
+
 ### Tests
 
-**650 tests, 97.5% coverage** (pytest + pytest-cov).
+**718 tests, 97.3% coverage** (pytest + pytest-cov).
 
 ## Where we sit vs the competition
 

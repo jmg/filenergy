@@ -8,25 +8,49 @@
   <p>Use these tokens with <code>Authorization: Bearer &lt;token&gt;</code> against
      <code>/api/v1/files</code> and <code>/api/v1/ask</code>.</p>
   <form method="POST" action="{{ url_for('settings.create_key') }}">
-    <input type="text" name="name" placeholder="What's this key for?" required>
-    <button class="btn btn-primary" type="submit">Create key</button>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>
+      <input type="text" name="name" placeholder="What's this key for?" required style="width:280px;">
+    </p>
+    <div style="font-size:13px; color:#666; margin: 6px 0;">
+      Scopes (leave all unchecked for full access):
+    </div>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:4px 16px; font-size:13px;">
+      <label><input type="checkbox" name="scopes" value="files:read"> files:read</label>
+      <label><input type="checkbox" name="scopes" value="files:write"> files:write</label>
+      <label><input type="checkbox" name="scopes" value="ask:read"> ask:read</label>
+      <label><input type="checkbox" name="scopes" value="ask:write"> ask:write</label>
+      <label><input type="checkbox" name="scopes" value="collections:read"> collections:read</label>
+      <label><input type="checkbox" name="scopes" value="collections:write"> collections:write</label>
+      <label><input type="checkbox" name="scopes" value="conversations:read"> conversations:read</label>
+      <label><input type="checkbox" name="scopes" value="conversations:write"> conversations:write</label>
+      <label><input type="checkbox" name="scopes" value="webhooks:read"> webhooks:read</label>
+      <label><input type="checkbox" name="scopes" value="webhooks:write"> webhooks:write</label>
+      <label><input type="checkbox" name="scopes" value="members:read"> members:read</label>
+      <label><input type="checkbox" name="scopes" value="members:write"> members:write</label>
+      <label><input type="checkbox" name="scopes" value="share_links:write"> share_links:write</label>
+    </div>
+    <p style="margin-top:10px;">
+      <button class="btn btn-primary" type="submit">Create key</button>
+    </p>
   </form>
 </div>
 
 <div class="card">
   <h3>Existing keys</h3>
   <table class="simple">
-    <tr><th>Name</th><th>Prefix</th><th>Created</th><th>Last used</th><th></th></tr>
+    <tr><th>Name</th><th>Scopes</th><th>Prefix</th><th>Created</th><th>Last used</th><th></th></tr>
     {% for k in keys %}
     <tr>
       <td>{{ k.name }} {% if not k.is_active %}<span class="pill" style="background:#fdd">revoked</span>{% endif %}</td>
+      <td><small>{% if k.scopes %}{{ k.scopes|join(', ') }}{% else %}<em>full access</em>{% endif %}</small></td>
       <td><code class="token">{{ k.prefix }}…</code></td>
       <td>{{ k.created_at.strftime('%Y-%m-%d') if k.created_at else '' }}</td>
       <td>{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else '—' }}</td>
       <td>
         {% if k.is_active %}
           <form method="POST" action="{{ url_for('settings.revoke_key', key_id=k.id) }}" style="display:inline">
-            <button class="btn btn-default danger" type="submit">Revoke</button>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default danger" type="submit">Revoke</button>
           </form>
         {% endif %}
       </td>

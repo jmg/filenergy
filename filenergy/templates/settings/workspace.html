@@ -19,7 +19,7 @@
       <td>
         {% if my_role in ('owner','admin') and m.user_id != g.workspace.owner_id and m.user_id != g.user.id %}
           <form method="POST" action="{{ url_for('workspace.remove_member', user_id=m.user_id) }}" style="display:inline">
-            <button class="btn btn-default danger" type="submit">Remove</button>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default danger" type="submit">Remove</button>
           </form>
         {% endif %}
       </td>
@@ -32,7 +32,7 @@
 <div class="card">
   <h3>Invite someone</h3>
   <form method="POST" action="{{ url_for('workspace.invite') }}">
-    <p>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>
       <input type="email" name="email" placeholder="teammate@example.com" required>
       <select name="role">
         <option value="member">Member</option>
@@ -66,7 +66,7 @@
       <td>
         {% if w.id != g.workspace.id %}
           <form method="POST" action="{{ url_for('workspace.switch', workspace_id=w.id) }}" style="display:inline">
-            <input type="hidden" name="next" value="{{ url_for('settings.workspace') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ url_for('settings.workspace') }}">
             <button class="btn btn-default" type="submit">Switch</button>
           </form>
         {% endif %}
@@ -76,7 +76,7 @@
   </table>
   <h4>Create another</h4>
   <form method="POST" action="{{ url_for('workspace.create') }}">
-    <input type="text" name="name" placeholder="Workspace name" required>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="text" name="name" placeholder="Workspace name" required>
     <button class="btn btn-primary" type="submit">Create</button>
   </form>
 </div>

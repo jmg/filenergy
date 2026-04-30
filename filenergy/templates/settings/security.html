@@ -8,17 +8,50 @@
   {% if totp_enabled %}
     <p>2FA is <strong style="color:#155724">on</strong>.</p>
     <form method="POST" action="{{ url_for('settings.totp_disable') }}" style="display:inline">
-      <button class="btn btn-default danger" type="submit">Disable 2FA</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default danger" type="submit">Disable 2FA</button>
     </form>
     <form method="POST" action="{{ url_for('settings.totp_regenerate') }}" style="display:inline">
-      <button class="btn btn-default" type="submit">Regenerate recovery codes</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default" type="submit">Regenerate recovery codes</button>
     </form>
   {% else %}
     <p>2FA is off. Adds a second factor on login using any TOTP app
        (1Password, Authy, Google Authenticator, etc.).</p>
     <form method="POST" action="{{ url_for('settings.totp_start') }}">
-      <button class="btn btn-primary" type="submit">Enable 2FA</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary" type="submit">Enable 2FA</button>
     </form>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Active sessions</h3>
+  <p style="color:#666;font-size:13px;">
+    Each row is a browser login. Revoke any that you don't recognise.
+  </p>
+  <table class="simple">
+    <tr><th>Last seen</th><th>Browser</th><th>IP</th><th></th></tr>
+    {% for s in active_sessions %}
+    <tr>
+      <td><small>{{ s.last_seen_at.strftime('%Y-%m-%d %H:%M') if s.last_seen_at else '—' }}</small></td>
+      <td><small>{{ (s.user_agent or '')[:80] }}</small></td>
+      <td><small>{{ s.ip_address or '' }}</small></td>
+      <td>
+        {% if s.id == current_session_id %}
+          <span class="pill">this session</span>
+        {% else %}
+          <form method="POST" action="{{ url_for('settings.revoke_session', session_id=s.id) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-default" type="submit">Revoke</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if active_sessions|length > 1 %}
+  <form method="POST" action="{{ url_for('settings.revoke_other_sessions') }}" style="margin-top:8px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-default" type="submit">Log out of all other sessions</button>
+  </form>
   {% endif %}
 </div>
 
@@ -28,7 +61,7 @@
      conversations, and webhooks — are wiped.</p>
   <form method="POST" action="{{ url_for('settings.delete_account') }}"
         onsubmit="return confirm('Really delete your account? This cannot be undone.');">
-    <p><input type="text" name="confirm" placeholder="Type your email to confirm" required></p>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p><input type="text" name="confirm" placeholder="Type your email to confirm" required></p>
     <button class="btn btn-danger" type="submit">Delete my account</button>
   </form>
 </div>

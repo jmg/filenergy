@@ -67,7 +67,7 @@
       <td>
         {% if stripe_configured and current_plan != 'pro' %}
         <form method="POST" action="{{ url_for('settings.billing_checkout') }}" style="display:inline">
-          <input type="hidden" name="plan" value="pro">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="plan" value="pro">
           <button class="btn btn-primary" type="submit">Upgrade</button>
         </form>
         {% elif current_plan == 'pro' %}<span class="pill pro">current</span>{% endif %}
@@ -75,7 +75,7 @@
       <td>
         {% if stripe_configured and current_plan != 'team' %}
         <form method="POST" action="{{ url_for('settings.billing_checkout') }}" style="display:inline">
-          <input type="hidden" name="plan" value="team">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="plan" value="team">
           <button class="btn btn-primary" type="submit">Upgrade</button>
         </form>
         {% elif current_plan == 'team' %}<span class="pill team">current</span>{% endif %}

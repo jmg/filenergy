@@ -116,22 +116,27 @@ class FileService(BaseService):
                 return False
 
             db_file.text_content = text
-            chunks = extraction.chunk_text(
+            chunks_with_offsets = extraction.chunk_text_with_offsets(
                 text, settings.CHUNK_SIZE, settings.CHUNK_OVERLAP
             )
-            if not chunks:
+            if not chunks_with_offsets:
                 db_file.index_error = "empty after chunking"
                 db.session.commit()
                 return False
 
-            vectors = embeddings.embed_documents(chunks)
+            chunk_texts = [c for c, _, _ in chunks_with_offsets]
+            vectors = embeddings.embed_documents(chunk_texts)
             Chunk.query.filter_by(file_id=db_file.id).delete()
-            for position, (content, vector) in enumerate(zip(chunks, vectors)):
+            for position, ((content, start, end), vector) in enumerate(
+                zip(chunks_with_offsets, vectors)
+            ):
                 db.session.add(Chunk(
                     file_id=db_file.id,
                     position=position,
                     content=content,
                     embedding=json.dumps(vector),
+                    char_offset_start=start,
+                    char_offset_end=end,
                 ))
 
             db_file.indexed_at = utcnow()
@@ -142,7 +147,7 @@ class FileService(BaseService):
                 user=db_file.user,
                 workspace_id=db_file.workspace_id,
                 file_id=db_file.id,
-                chunks=len(chunks),
+                chunks=len(chunks_with_offsets),
             )
             # Best-effort enrichment: summary + suggested questions.
             # Failures don't unindex the file.
