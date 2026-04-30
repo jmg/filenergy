@@ -1,1 +1,12 @@
-Generic single-database configuration.
+Alembic migrations.
+
+Production:
+    export FLASK_APP=manage:app
+    flask db upgrade               # apply pending migrations
+
+When you change a model:
+    flask db migrate -m "what changed"
+    flask db upgrade
+
+Tests still use db.create_all() against an in-memory schema, so the suite
+does not depend on Alembic state.

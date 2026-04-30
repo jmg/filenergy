@@ -1,0 +1,24 @@
+{% extends "settings/_layout.html" %}
+
+{% block header %}Set up 2FA{% endblock %}
+
+{% block settings %}
+<div class="card">
+  <h3>Step 1 — Scan this QR code</h3>
+  <p>Use any TOTP app (Authy, 1Password, Google Authenticator, etc.).</p>
+  <div style="background:#fff;padding:12px;display:inline-block;">{{ qr_svg|safe }}</div>
+  <details style="margin-top:10px;">
+    <summary>Can't scan? Enter the secret manually</summary>
+    <pre style="background:#f5f5f5;padding:8px;border-radius:4px;font-size:12px;word-break:break-all;">{{ otpauth_uri }}</pre>
+  </details>
+</div>
+<div class="card">
+  <h3>Step 2 — Confirm with a code</h3>
+  <form method="POST" action="{{ url_for('settings.totp_enable') }}">
+    <p><input type="text" name="code" inputmode="numeric"
+              placeholder="6-digit code" required class="input-xlarge"></p>
+    <button class="btn btn-primary" type="submit">Enable 2FA</button>
+    <a class="btn" href="{{ url_for('settings.security') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,32 +1,35 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <form action="/user/login/" method="post">
-    <h2>Login </h2>
+  <form action="/user/login/" method="post" style="max-width:380px;margin:auto;">
+    <h2>Login</h2>
     <br>
 
     <div class="control-group">
-        <div class="controls">
-          <input type="email" id="email" name="email" class="input-xlarge"
-            placeholder="Enter Email" value="{{ request.form.username }}"
-            required>
-        </div>
+      <input type="email" id="email" name="email" class="input-xlarge"
+        placeholder="Email" value="{{ request.form.email or '' }}" required>
     </div>
 
     <div class="control-group">
-        <div class="controls">
-          <input type="password" id="password" name="password" class="input-xlarge"
-            placeholder="Enter Password" value="{{ request.form.password }}"
-            required>
-        </div>
+      <input type="password" id="password" name="password" class="input-xlarge"
+        placeholder="Password" required>
     </div>
 
     <input type="hidden" name="next" value="{% if next %}{{next}}{% endif %}"/>
 
     <div class="control-group">
-        <div class="controls">
-          <button type="submit" class="btn btn-primary">Login</button>
-        </div>
+      <button type="submit" class="btn btn-primary">Login</button>
     </div>
+
+    {% if google_enabled %}
+      <hr>
+      <p>or</p>
+      <a class="btn btn-default btn-block" href="{{ url_for('user.oauth_google_login') }}">Sign in with Google</a>
+    {% endif %}
+
+    <hr>
+    <p style="font-size:13px;color:#888;">
+      Don't have an account? <a href="{{ url_for('user.register') }}">Sign up</a>
+    </p>
   </form>
 {% endblock %}

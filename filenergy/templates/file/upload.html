@@ -25,7 +25,35 @@
 
     <div id="files" class="files"></div>
 
+    <hr style="margin:20px 0;">
+    <h4 style="font-size:14px;color:#666;">Or pull from a URL</h4>
+    <form id="url-form" class="form-inline" onsubmit="ingestUrl(); return false;">
+      <input type="url" id="url-input" placeholder="https://example.com/article" class="input-xlarge" required>
+      <button class="btn btn-default" type="submit">Fetch & index</button>
+      <span id="url-status" style="margin-left:10px;color:#888;font-size:13px;"></span>
+    </form>
 </div>
+
+<script>
+function ingestUrl() {
+  var $input = $('#url-input');
+  var $status = $('#url-status');
+  var url = $input.val().trim();
+  if (!url) return;
+  $status.text('Fetching...');
+  $.ajax({
+    url: '/file/from_url/',
+    method: 'POST',
+    data: { url: url },
+  }).done(function(resp) {
+    $status.html('Saved as <a href="/file/' + resp.file_id + '">' + resp.name + '</a>');
+    $input.val('');
+  }).fail(function(xhr) {
+    var msg = (xhr.responseJSON && xhr.responseJSON.error) || 'Failed.';
+    $status.css('color', '#a00').text(msg);
+  });
+}
+</script>
 
 <script src="/static/js/vendor/jquery.ui.widget.js"></script>
 <script src="/static/js/load-image.min.js"></script>

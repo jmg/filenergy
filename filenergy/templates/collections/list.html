@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block header %}Collections{% endblock %}
+
+{% block content %}
+<div class="row well" style="max-width:760px;margin:auto;">
+  <h3>Your collections</h3>
+  {% if collections %}
+    <ul style="list-style:none;padding:0;">
+    {% for c in collections %}
+      <li style="padding:10px 0;border-bottom:1px solid #eee;">
+        <a href="{{ url_for('collections.view', slug=c.slug) }}"><strong>{{ c.name }}</strong></a>
+        <span style="color:#888;font-size:13px;"> · {{ c.files.count() }} files</span>
+        {% if c.description %}<div style="color:#666;font-size:13px;">{{ c.description }}</div>{% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <p style="color:#888;">No collections yet. Create your first one below.</p>
+  {% endif %}
+
+  <h4>New collection</h4>
+  <form method="POST" action="{{ url_for('collections.create') }}">
+    <p><input class="input-xlarge" type="text" name="name" placeholder="Engineering specs, Q4 contracts..." required></p>
+    <p><textarea class="input-xlarge" name="description" placeholder="Optional description"></textarea></p>
+    <button class="btn btn-primary" type="submit">Create</button>
+  </form>
+</div>
+{% endblock %}

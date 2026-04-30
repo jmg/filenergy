@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block header %}{{ file.name }}{% endblock %}
+
+{% block content %}
+<div class="row well" style="max-width:760px;margin:auto;">
+  <p style="color:#666">
+    {{ "%.1f"|format((file.size_bytes or 0) / 1024) }} KB ·
+    uploaded {{ file.created_at.strftime('%Y-%m-%d') if file.created_at else '' }} ·
+    <span class="pill">{{ file.index_status }}</span>
+    {% if file.collection %}
+      · in <a href="{{ url_for('collections.view', slug=file.collection.slug) }}">{{ file.collection.name }}</a>
+    {% endif %}
+  </p>
+
+  {% if file.summary %}
+    <h4>Summary</h4>
+    <p>{{ file.summary }}</p>
+  {% endif %}
+
+  {% if file.suggested_questions %}
+    <h4>Suggested questions</h4>
+    <ul>
+      {% for q in file.suggested_questions %}
+      <li>
+        <a href="{{ url_for('ask.index', file_id=file.id) }}#q-{{ loop.index }}">{{ q }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <p>
+    <a class="btn btn-primary" href="{{ url_for('ask.index', file_id=file.id) }}">Ask this file</a>
+    <a class="btn" href="{{ url_for('file.download_post', h=file.url) }}">Download</a>
+  </p>
+
+  <h4>Move to collection</h4>
+  <form method="POST" action="{{ url_for('collections.assign') }}">
+    <input type="hidden" name="file_id" value="{{ file.id }}">
+    <select name="collection_id">
+      <option value="">— No collection —</option>
+      {% for c in all_collections %}
+        <option value="{{ c.id }}" {% if file.collection_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">Save</button>
+  </form>
+
+  {% if share_links_active %}
+    <h4>Active share links</h4>
+    <ul>
+    {% for link in share_links_active %}
+      <li>
+        <code>{{ url_for('share.landing', token=link.token, _external=True) }}</code>
+        — {{ link.download_count or 0 }} downloads
+      </li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if file.text_content %}
+    <details style="margin-top:16px;">
+      <summary>Extracted text preview</summary>
+      <pre style="background:#f5f5f5;padding:10px;border-radius:6px;font-size:12px;max-height:300px;overflow:auto;">{{ file.text_content[:5000] }}</pre>
+    </details>
+  {% endif %}
+</div>
+{% endblock %}

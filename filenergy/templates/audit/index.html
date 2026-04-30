@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block header %}Audit log{% endblock %}
+
+{% block content %}
+<div class="row" style="max-width:900px;margin:auto;">
+
+  <form method="GET" class="well form-inline">
+    <input type="text" name="type" placeholder="event type prefix..." value="{{ type_filter }}">
+    <input type="text" name="user_id" placeholder="user id..." value="{{ user_filter }}" style="width:80px;">
+    <button class="btn btn-primary" type="submit">Filter</button>
+    <a class="btn"
+       href="{{ url_for('audit.export_csv', type=type_filter, user_id=user_filter) }}">
+      Export CSV
+    </a>
+  </form>
+
+  <p style="color:#666;">{{ total }} events</p>
+  <table class="table">
+    <tr><th>When</th><th>Type</th><th>User</th><th>Metadata</th></tr>
+    {% for e in events %}
+    <tr>
+      <td><small>{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') if e.created_at else '' }}</small></td>
+      <td><code>{{ e.type }}</code></td>
+      <td>{% if e.user_id and users.get(e.user_id) %}{{ users[e.user_id].email }}{% else %}—{% endif %}</td>
+      <td><small style="color:#888;">{{ (e.metadata_json or '')[:120] }}</small></td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <div style="display:flex;justify-content:space-between;">
+    {% if page > 1 %}
+      <a class="btn" href="?page={{ page - 1 }}&type={{ type_filter }}&user_id={{ user_filter }}">← Prev</a>
+    {% else %}
+      <span></span>
+    {% endif %}
+    {% if has_next %}
+      <a class="btn" href="?page={{ page + 1 }}&type={{ type_filter }}&user_id={{ user_filter }}">Next →</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

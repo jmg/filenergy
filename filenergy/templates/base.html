@@ -38,16 +38,29 @@
           <ul class="nav" id="main-menu-left">
 
             <li><a href="/file/upload/">Upload</a></li>
-            <li><a href="/file/list/">My Files</a></li>
+            <li><a href="/file/list/">Files</a></li>
+            <li><a href="/collections/">Collections</a></li>
+            <li><a href="/ask/">Ask</a></li>
+            {% if g.user.is_authenticated %}
+              <li><a href="/connectors/">Connectors</a></li>
+              <li><a href="/dashboard/">Dashboard</a></li>
+              <li><a href="/settings/">Settings</a></li>
+            {% endif %}
 
           </ul>
           <ul class="nav pull-right" id="main-menu-right">
-            {% if not g.user.is_authenticated() %}
+            {% if not g.user.is_authenticated %}
             <li><a href="/user/login/">Login</a></li>
             <li><a href="/user/register/">Signup</i></a></li>
             {% else %}
-            <li><a href="/file/list/">Welcome {{g.user.username}}</a></li>
-            <li><a href="/user/logout/">Logout</a></li>
+              {% if g.workspace %}
+                <li style="padding:10px 12px;color:#888;font-size:13px;">
+                  {{ g.workspace.name }}
+                  <span style="background:#eef3f8;color:#2a4d8f;padding:2px 7px;border-radius:10px;font-size:10px;text-transform:uppercase;margin-left:4px;">{{ g.workspace.plan or 'free' }}</span>
+                </li>
+              {% endif %}
+              <li><a href="/file/list/">{{g.user.email}}</a></li>
+              <li><a href="/user/logout/">Logout</a></li>
             {% endif %}
           </ul>
          </div>

@@ -1,0 +1,51 @@
+{% extends "settings/_layout.html" %}
+
+{% block header %}API keys{% endblock %}
+
+{% block settings %}
+<div class="card">
+  <h3>Programmatic access</h3>
+  <p>Use these tokens with <code>Authorization: Bearer &lt;token&gt;</code> against
+     <code>/api/v1/files</code> and <code>/api/v1/ask</code>.</p>
+  <form method="POST" action="{{ url_for('settings.create_key') }}">
+    <input type="text" name="name" placeholder="What's this key for?" required>
+    <button class="btn btn-primary" type="submit">Create key</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Existing keys</h3>
+  <table class="simple">
+    <tr><th>Name</th><th>Prefix</th><th>Created</th><th>Last used</th><th></th></tr>
+    {% for k in keys %}
+    <tr>
+      <td>{{ k.name }} {% if not k.is_active %}<span class="pill" style="background:#fdd">revoked</span>{% endif %}</td>
+      <td><code class="token">{{ k.prefix }}…</code></td>
+      <td>{{ k.created_at.strftime('%Y-%m-%d') if k.created_at else '' }}</td>
+      <td>{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else '—' }}</td>
+      <td>
+        {% if k.is_active %}
+          <form method="POST" action="{{ url_for('settings.revoke_key', key_id=k.id) }}" style="display:inline">
+            <button class="btn btn-default danger" type="submit">Revoke</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3>Quick start</h3>
+<pre style="background:#f5f5f5;padding:12px;border-radius:6px;overflow:auto;font-size:12px">
+curl -X POST http://localhost:5000/api/v1/ask \
+  -H "Authorization: Bearer $FILENERGY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What do my contracts say about termination?"}'
+
+curl -X POST http://localhost:5000/api/v1/files \
+  -H "Authorization: Bearer $FILENERGY_TOKEN" \
+  -F "files[]=@./report.pdf"
+</pre>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block header %}Two-factor authentication{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('user.two_factor_post') }}"
+      style="max-width:380px;margin:40px auto;">
+  <p>Enter the 6-digit code from your authenticator app, or a recovery code.</p>
+  <div class="control-group">
+    <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+           placeholder="123456 or recovery code" autofocus required class="input-xlarge">
+  </div>
+  <button type="submit" class="btn btn-primary">Verify</button>
+</form>
+{% endblock %}
