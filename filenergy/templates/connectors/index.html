@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block header %}Connectors{% endblock %}
+
+{% block content %}
+<div class="row" style="max-width:760px;margin:auto;">
+  <p style="color:#666;">
+    Connect a third-party source. We'll pull its files into this workspace
+    and index them like any other upload.
+  </p>
+
+  <h4>Available</h4>
+  <ul style="list-style:none;padding:0;">
+    {% for c in all_connectors %}
+    <li style="padding:10px 0;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <strong>{{ c.label }}</strong>
+        <span style="color:#888;font-size:13px;"> · kind={{ c.kind }}</span>
+      </div>
+      <div>
+        {% if c.is_configured() %}
+          <a class="btn btn-primary" href="{{ url_for('connectors.connect', kind=c.kind) }}">Connect</a>
+        {% else %}
+          <span style="color:#a04;">Not configured on server</span>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <h4 style="margin-top:24px;">Connected accounts</h4>
+  {% if accounts %}
+    <table class="table">
+      <tr><th>Source</th><th>Account</th><th>Last sync</th><th></th></tr>
+      {% for a in accounts %}
+      <tr>
+        <td>{{ a.kind }}</td>
+        <td>{{ a.account_label }}</td>
+        <td>
+          {% if a.last_synced_at %}
+            {{ a.last_synced_at.strftime('%Y-%m-%d %H:%M') }}
+          {% else %}—{% endif %}
+          {% if a.last_error %}
+            <div style="color:#a00;font-size:12px;">{{ a.last_error }}</div>
+          {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('connectors.sync', account_id=a.id) }}" style="display:inline">
+            <button class="btn btn-default" type="submit">Sync now</button>
+          </form>
+          <form method="POST" action="{{ url_for('connectors.disconnect', account_id=a.id) }}" style="display:inline"
+                onsubmit="return confirm('Disconnect?');">
+            <button class="btn btn-default" type="submit">Disconnect</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p style="color:#888;">Nothing connected yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -346,6 +346,63 @@ def delete_conversation(conversation_id):
     return jsonify(error="Conversation not found"), 404
 
 
+def _conversation_for_export(conversation_id):
+    from filenergy.models import Conversation
+    return Conversation.query.filter_by(
+        id=conversation_id, user_id=g.user.id, workspace_id=g.workspace.id,
+    ).first()
+
+
+@ask_bp.route("/c/<int:conversation_id>/export.pdf")
+@login_required
+def export_pdf(conversation_id):
+    from flask import Response
+
+    from filenergy.services import exporting
+
+    conv = _conversation_for_export(conversation_id)
+    if conv is None:
+        return "Not found", 404
+    try:
+        body = exporting.to_pdf(conv)
+    except exporting.ExportUnavailable as exc:
+        return jsonify(error=str(exc)), 503
+    return Response(
+        body, mimetype="application/pdf",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="conversation-{conv.id}.pdf"',
+        },
+    )
+
+
+@ask_bp.route("/c/<int:conversation_id>/export.docx")
+@login_required
+def export_docx(conversation_id):
+    from flask import Response
+
+    from filenergy.services import exporting
+
+    conv = _conversation_for_export(conversation_id)
+    if conv is None:
+        return "Not found", 404
+    try:
+        body = exporting.to_docx(conv)
+    except exporting.ExportUnavailable as exc:
+        return jsonify(error=str(exc)), 503
+    return Response(
+        body,
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument."
+            "wordprocessingml.document"
+        ),
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="conversation-{conv.id}.docx"',
+        },
+    )
+
+
 @ask_bp.route("/c/<int:conversation_id>/export.md")
 @login_required
 def export_markdown(conversation_id):

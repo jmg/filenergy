@@ -56,12 +56,26 @@ def test_from_url_quota_exceeded(auth_client, monkeypatch):
     assert r.status_code == 402
 
 
-def test_from_url_requires_login(client):
+def test_from_url_requires_auth(client):
+    """Anonymous (no cookie, no Bearer) gets 401."""
     r = client.post(
         "/file/from_url/", data={"url": "https://example.com/x"},
-        follow_redirects=False,
     )
-    assert r.status_code == 302
+    assert r.status_code == 401
+
+
+def test_from_url_accepts_bearer_token(client, workspace, user, app, monkeypatch):
+    """Browser extension flow: no cookies, just an API key."""
+    _stub_urlopen(monkeypatch, b"<title>X</title><p>Hi</p>")
+    from filenergy.services import api_keys
+    with app.test_request_context():
+        _, token = api_keys.mint(workspace, user, "ext")
+    r = client.post(
+        "/file/from_url/",
+        data={"url": "https://example.com/x"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
 
 
 # ---- Onboarding ----

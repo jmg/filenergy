@@ -82,15 +82,9 @@ class FileService(BaseService):
         return db_file
 
     def _index_async(self, file_id: int) -> None:
-        """Run indexing in a background thread with its own app context."""
-
-        def _run():
-            with app.app_context():
-                f = File.query.get(file_id)
-                if f is not None:
-                    self.index_file(f)
-
-        threading.Thread(target=_run, name=f"index-{file_id}", daemon=True).start()
+        """Run indexing via the configured job backend (thread or RQ)."""
+        from filenergy.services import jobs
+        jobs.enqueue("filenergy.services.file.index_file_by_id", file_id)
 
     def index_file(self, db_file):
         """Extract text, chunk it, embed each chunk, and persist."""
@@ -225,3 +219,11 @@ class FileService(BaseService):
         return (
             File.query.filter(File.workspace_id == workspace.id, like).all()
         )
+
+
+def index_file_by_id(file_id: int) -> bool:
+    """Module-level entry point — importable by RQ workers."""
+    f = db.session.get(File, file_id)
+    if f is None:
+        return False
+    return FileService().index_file(f)

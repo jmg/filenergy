@@ -406,6 +406,26 @@ class WebhookSubscription(BaseModel):
             return []
 
 
+class ConnectorAccount(BaseModel):
+    """A workspace's authorized link to a third-party source (Google Drive,
+    Notion, Slack, ...). One row per (workspace, kind, account_label).
+    """
+
+    __tablename__ = "connector_account"
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey("workspace.id"), index=True)
+    kind = db.Column(db.String(32), index=True)  # "google_drive", etc.
+    account_label = db.Column(db.String(255))  # email / handle
+    access_token = db.Column(db.Text)
+    refresh_token = db.Column(db.Text, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    last_synced_at = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.Text, nullable=True)
+
+    workspace = db.relationship("Workspace")
+
+
 class WebhookDelivery(BaseModel):
     """One attempted webhook delivery, success or failure."""
 

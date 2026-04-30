@@ -206,25 +206,28 @@ def test_search_anonymous_only_public(db, user, workspace):
     assert {f.name for f in found} == {"public.txt"}
 
 
-def test_async_indexing_starts_thread(db, user, workspace, app, monkeypatch):
-    """sync_index=False must spawn a thread targeting the index step."""
+def test_async_indexing_routes_through_jobs(db, user, workspace, app, monkeypatch):
+    """sync_index=False routes through the jobs.enqueue abstraction.
+
+    Under TESTING mode jobs.enqueue runs synchronously, so the file ends
+    up indexed before save_file returns.
+    """
     captured: list = []
 
-    class _FakeThread:
-        def __init__(self, target, name=None, daemon=None):
-            captured.append({"target": target, "name": name, "daemon": daemon})
-            self.target = target
+    from filenergy.services import jobs
 
-        def start(self):
-            # Run the target synchronously so we can assert on its DB effects.
-            self.target()
+    real_enqueue = jobs.enqueue
 
-    monkeypatch.setattr("threading.Thread", _FakeThread)
+    def spy(target, *args, **kwargs):
+        captured.append((target, args))
+        return real_enqueue(target, *args, **kwargs)
+
+    monkeypatch.setattr(jobs, "enqueue", spy)
     req = _RequestStub(_UploadFile("a.txt", b"hello world"))
     with app.test_request_context():
         FileService().save_file(req, user, workspace, sync_index=False)
-    # The fake thread ran the indexer.
-    assert any(c["name"].startswith("index-") for c in captured)
+    assert captured  # was enqueued
+    assert captured[0][0].endswith("index_file_by_id")
     db.session.expire_all()
     f = File.query.filter_by(workspace_id=workspace.id).one()
     assert f.indexed_at is not None

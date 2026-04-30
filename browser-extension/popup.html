@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Save to Filenergy</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; width: 320px; padding: 14px; margin: 0; }
+  h3 { margin: 0 0 12px; font-size: 15px; }
+  label { display: block; font-size: 12px; color: #666; margin: 6px 0 2px; }
+  input { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
+  button { background: #2a4d8f; color: white; border: 0; border-radius: 4px; padding: 8px 12px; cursor: pointer; margin-top: 10px; width: 100%; font-size: 13px; }
+  button:disabled { opacity: 0.6; }
+  .status { margin-top: 8px; font-size: 12px; min-height: 14px; }
+  .status.ok { color: #155724; }
+  .status.err { color: #a00; }
+  .url { color: #888; font-size: 11px; word-break: break-all; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<h3>Save current tab to Filenergy</h3>
+
+<label for="base">Server</label>
+<input id="base" placeholder="https://your-filenergy.com" />
+
+<label for="token">API key (Bearer)</label>
+<input id="token" type="password" placeholder="fk_..." />
+
+<div class="url" id="current-url"></div>
+
+<button id="save">Save page</button>
+<div class="status" id="status"></div>
+
+<script src="popup.js"></script>
+</body>
+</html>

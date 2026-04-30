@@ -11,17 +11,36 @@ file_bp = Blueprint("file", __name__)
 
 
 @file_bp.route("/from_url/", methods=["POST"])
-@login_required
 def from_url():
+    """Accepts either a logged-in session OR a Bearer API key.
+
+    The browser extension uses the latter path so it can post without
+    cookies. Quota checks apply to whichever workspace owns the auth.
+    """
+    user = None
+    workspace = None
+    if g.user.is_authenticated:
+        user, workspace = g.user, g.workspace
+    else:
+        from filenergy.services import api_keys
+        auth = request.headers.get("Authorization", "")
+        token = auth.split()[1] if auth.lower().startswith("bearer ") else (
+            request.headers.get("X-API-Key", "")
+        )
+        record = api_keys.verify(token) if token else None
+        if record is None:
+            return jsonify(error="Authentication required"), 401
+        user, workspace = record.user, record.workspace
+
     url = (request.form.get("url") or "").strip()
     if not url:
         return jsonify(error="URL is required"), 400
     try:
-        billing.ensure_can_upload(g.workspace)
+        billing.ensure_can_upload(workspace)
     except billing.QuotaExceeded as exc:
         return jsonify(error=str(exc), kind=exc.kind), 402
     try:
-        f = ingestion.ingest_url(user=g.user, workspace=g.workspace, url=url)
+        f = ingestion.ingest_url(user=user, workspace=workspace, url=url)
     except ingestion.IngestionError as exc:
         return jsonify(error=str(exc)), 400
     return jsonify(

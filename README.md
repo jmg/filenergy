@@ -128,9 +128,57 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
   `FILENERGY_SKIP_CREATE_ALL=1` when running `flask db migrate` against
   an empty schema.
 
+### Conversation export
+
+- **`/ask/c/<id>/export.md`** — Markdown
+- **`/ask/c/<id>/export.pdf`** — PDF (via `fpdf2`, no Cairo dependency)
+- **`/ask/c/<id>/export.docx`** — DOCX (via `python-docx`, already a dep)
+
+### Connectors framework
+
+- Pluggable third-party sources via `filenergy/services/connectors.py`.
+- **Google Drive** reference implementation: OAuth dance, token refresh,
+  list + download files (native Google docs are exported as text/CSV;
+  PDFs and text/* MIME types are pulled directly).
+- Manage connections at `/connectors/`. Sync runs on demand from the UI.
+  Same shape ready for Notion / Slack / Dropbox / Box.
+
+### Browser extension
+
+- `browser-extension/` — Chrome MV3 popup. Paste your server URL + an
+  API key, click "Save page". POSTs the current tab's URL to
+  `/file/from_url/` with `Authorization: Bearer …`. The endpoint accepts
+  either session cookies or API keys.
+
+### Background job queue
+
+- **`filenergy/services/jobs.py`** — `enqueue(target_path, *args)`.
+- Default backend is `thread`: a daemon thread per job (zero-config).
+- Set `FILENERGY_JOBS_BACKEND=rq` + `REDIS_URL=redis://...` to push to a
+  Redis queue (run an `rq` worker against it). Falls back to thread when
+  the dep or URL is missing.
+- Tests force synchronous execution via `app.config["TESTING"]`.
+
+### Postgres
+
+- The DB engine is just whatever URI you put in `FILENERGY_DB_URI`. Set
+  `postgresql://user:pass@host/db` and `flask db upgrade` once. SQLite
+  is fine for dev and small tenants; Postgres is the production target.
+- Embeddings are still JSON-in-Text columns. `pgvector` migration is on
+  the roadmap (when a tenant crosses ~10K chunks).
+
+### SAML SSO (scaffold)
+
+- `services/saml_sso.py` defines the SP-side hooks; the Filenergy build
+  ships them as stubs that return clear `501 Not Implemented`. Plug in
+  `python3-saml` or `pysaml2` in your fork (system deps: `libxml2`,
+  `xmlsec1`) and replace `init_request` / `process_response`.
+- `/saml/status` returns the live config so you can verify env wiring
+  before installing the C library.
+
 ### Tests
 
-**460 tests, 97.7% coverage** (pytest + pytest-cov).
+**522 tests, 97.5% coverage** (pytest + pytest-cov).
 
 ## Where we sit vs the competition
 
@@ -143,6 +191,10 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 | Auto-summary + suggested Qs   | ✅        | ✅         | ✅     | ❌       | ❌    |
 | OCR for scanned PDFs / images | ✅        | ✅         | ✅     | ❌       | ❌    |
 | URL ingestion                 | ✅        | ✅         | ❌     | ❌       | ❌    |
+| Conversation export (MD/PDF/DOCX) | ✅    | partial    | ❌     | ❌       | ❌    |
+| GDrive connector              | ✅        | ❌         | ❌     | ✅       | ✅    |
+| Browser extension             | ✅        | ❌         | ❌     | ❌       | ❌    |
+| Background job queue (RQ)     | ✅        | n/a        | n/a    | n/a      | n/a   |
 | Outbound webhooks             | ✅        | ❌         | ❌     | ✅       | ✅    |
 | Audit log UI + CSV export     | ✅        | ❌         | ❌     | ❌       | ✅    |
 | Activity dashboard            | ✅        | ❌         | ❌     | ✅       | ✅    |
@@ -155,8 +207,8 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 | Prometheus `/metrics`         | ✅        | ❌         | ❌     | ❌       | ✅    |
 | Onboarding wizard             | ✅        | ✅         | ✅     | ❌       | ✅    |
 | Alembic migrations            | ✅        | n/a        | n/a    | n/a      | n/a   |
-| SAML SSO                      | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
-| GDrive / Slack connectors     | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
+| SAML SSO                      | scaffold  | ❌         | ❌     | ✅       | ✅    |
+| Notion / Slack connectors     | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
 
 ## Setup
 
@@ -356,11 +408,11 @@ TLS terminated.
 
 ## Roadmap
 
-- **SAML SSO** (in addition to Google OIDC) for the Team tier.
-- **Connectors**: pull from Google Drive, Notion, Dropbox, Slack.
-- **Browser extension** to clip a webpage into a workspace.
-- **Postgres + pgvector** as the production target (today's SQLite + JSON
-  embeddings tops out around ~10K chunks per workspace).
-- **RQ / Celery** indexing queue for tenants who upload thousands of
-  files at once.
-- **PDF / DOCX export** of conversations (we already do Markdown).
+- **SAML SSO**: replace `services/saml_sso.py` stubs with `python3-saml`
+  or `pysaml2` calls (system deps required).
+- **Notion / Slack / Dropbox connectors** following the
+  `services/connectors.py` shape (Google Drive is the reference).
+- **pgvector** for embeddings — the schema migration when a tenant
+  crosses ~10K chunks; SQLite + JSON columns work fine until then.
+- **Background sync schedules** for connectors (today is manual via the
+  "Sync now" button).
