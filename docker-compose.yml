@@ -1,0 +1,24 @@
+services:
+  filenergy:
+    build: .
+    image: filenergy:dev
+    ports:
+      - "5000:5000"
+    environment:
+      FILENERGY_SECRET_KEY: ${FILENERGY_SECRET_KEY:-change-me-in-production}
+      FILENERGY_BASE_URL: ${FILENERGY_BASE_URL:-http://localhost:5000}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_TEAM: ${STRIPE_PRICE_TEAM:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      FILENERGY_EMAIL_ADAPTER: ${FILENERGY_EMAIL_ADAPTER:-log}
+    volumes:
+      - filenergy-data:/data
+    restart: unless-stopped
+
+volumes:
+  filenergy-data:

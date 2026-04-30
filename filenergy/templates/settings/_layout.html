@@ -30,6 +30,7 @@
 <div class="settings-shell">
   <aside class="settings-side">
     <a href="{{ url_for('settings.profile') }}" class="{% if request.endpoint == 'settings.profile' %}active{% endif %}">Profile</a>
+    <a href="{{ url_for('settings.security') }}" class="{% if request.endpoint and request.endpoint.startswith('settings.totp') or request.endpoint in ('settings.security', 'settings.delete_account') %}active{% endif %}">Security</a>
     <a href="{{ url_for('settings.workspace') }}" class="{% if request.endpoint == 'settings.workspace' %}active{% endif %}">Workspace</a>
     <a href="{{ url_for('settings.keys') }}" class="{% if request.endpoint == 'settings.keys' %}active{% endif %}">API keys</a>
     <a href="{{ url_for('settings.webhooks_page') }}" class="{% if request.endpoint and 'webhook' in request.endpoint %}active{% endif %}">Webhooks</a>

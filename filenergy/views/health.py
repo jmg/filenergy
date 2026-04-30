@@ -1,12 +1,13 @@
-"""Liveness + readiness probes for ops.
+"""Liveness + readiness probes + Prometheus metrics.
 
-`/healthz` returns 200 instantly with no DB hit — for k8s liveness.
-`/readyz` does a cheap SELECT 1 to confirm DB and reports config status.
+- `/healthz` returns 200 instantly with no DB hit — for k8s liveness.
+- `/readyz` does a cheap SELECT 1 to confirm DB and reports config status.
+- `/metrics` exposes Prometheus-format counters/histograms (in-process).
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint, Response, jsonify
 
 from filenergy import db
-from filenergy.services import billing, chat, embeddings
+from filenergy.services import billing, chat, embeddings, metrics
 
 health_bp = Blueprint("health", __name__)
 
@@ -14,6 +15,11 @@ health_bp = Blueprint("health", __name__)
 @health_bp.route("/healthz")
 def healthz():
     return jsonify(ok=True)
+
+
+@health_bp.route("/metrics")
+def metrics_endpoint():
+    return Response(metrics.render(), mimetype="text/plain; version=0.0.4")
 
 
 @health_bp.route("/readyz")

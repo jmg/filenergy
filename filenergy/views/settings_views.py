@@ -2,8 +2,8 @@
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 from flask_login import login_required
 
-from filenergy import settings as cfg
-from filenergy.services import api_keys, billing, events, webhooks, workspaces
+from filenergy import db, settings as cfg
+from filenergy.services import api_keys, billing, events, totp, webhooks, workspaces
 
 settings_bp = Blueprint("settings", __name__)
 
@@ -98,6 +98,108 @@ def billing_page():
         stripe_configured=billing.is_configured(),
         current_plan=g.workspace.plan or "free",
     )
+
+
+@settings_bp.route("/security")
+@login_required
+def security():
+    return render_template(
+        "settings/security.html",
+        totp_enabled=g.user.totp_enabled,
+        has_pending_setup=bool(g.user.totp_secret) and not g.user.totp_enabled,
+    )
+
+
+@settings_bp.route("/security/totp/start", methods=["POST"])
+@login_required
+def totp_start():
+    try:
+        uri = totp.start_setup(g.user)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("settings.security"))
+    qr = totp.qr_svg(uri)
+    return render_template(
+        "settings/security_setup.html", otpauth_uri=uri, qr_svg=qr
+    )
+
+
+@settings_bp.route("/security/totp/enable", methods=["POST"])
+@login_required
+def totp_enable():
+    code = (request.form.get("code") or "").strip()
+    if not totp.enable(g.user, code):
+        flash("Invalid code. Try again.", "error")
+        return redirect(url_for("settings.totp_start"))
+    codes = totp.regenerate_recovery_codes(g.user)
+    flash(
+        "2FA is on. Save these recovery codes — each is single-use:\n"
+        + " ".join(codes),
+        "success",
+    )
+    return redirect(url_for("settings.security"))
+
+
+@settings_bp.route("/security/totp/disable", methods=["POST"])
+@login_required
+def totp_disable():
+    totp.disable(g.user)
+    flash("2FA disabled.", "success")
+    return redirect(url_for("settings.security"))
+
+
+@settings_bp.route("/security/totp/recover", methods=["POST"])
+@login_required
+def totp_regenerate():
+    try:
+        codes = totp.regenerate_recovery_codes(g.user)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("settings.security"))
+    flash("New codes: " + " ".join(codes), "success")
+    return redirect(url_for("settings.security"))
+
+
+@settings_bp.route("/account/delete", methods=["POST"])
+@login_required
+def delete_account():
+    """GDPR self-serve account deletion.
+
+    Wipes the user, every workspace they own (and all its files), and any
+    membership rows. This is irreversible.
+    """
+    if (request.form.get("confirm") or "").strip() != g.user.email:
+        flash("Type your email to confirm.", "error")
+        return redirect(url_for("settings.security"))
+
+    from filenergy.models import (
+        ApiKey, Conversation, Event, User, Workspace, WorkspaceMember,
+    )
+    from flask_login import logout_user
+
+    user_id = g.user.id
+    user_row = User.query.get(user_id)
+
+    # Workspaces the user owns are wiped (cascades to files, conversations, etc.).
+    for w in Workspace.query.filter_by(owner_id=user_id).all():
+        db.session.delete(w)
+    # Membership rows in other workspaces.
+    WorkspaceMember.query.filter_by(user_id=user_id).delete()
+    # Personal artifacts not under any workspace.
+    Conversation.query.filter_by(user_id=user_id).delete()
+    ApiKey.query.filter_by(user_id=user_id).delete()
+    # Anonymize events instead of deleting (audit trail).
+    Event.query.filter_by(user_id=user_id).update({Event.user_id: None})
+    db.session.commit()
+
+    logout_user()
+    db.session.delete(user_row)
+    db.session.commit()
+    events.log_event(
+        "user.deleted", workspace_id=None, deleted_user_id=user_id,
+    )
+    flash("Account deleted.", "success")
+    return redirect(url_for("index.index"))
 
 
 @settings_bp.route("/webhooks")

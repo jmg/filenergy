@@ -50,17 +50,62 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
   rate-limiter, billing usage, audit log, and webhooks.
 - **Health endpoints** — `/healthz` (cheap liveness) and `/readyz` (DB +
   config check) for k8s and uptime monitors.
-- **Settings UI** — profile, workspace, API keys, webhooks, audit log,
-  billing.
+- **Settings UI** — profile, security, workspace, API keys, webhooks,
+  audit log, billing.
 - **Indexing badges** — the file list shows `indexed` / `pending` /
   `error` per row with one-click reindex.
-- **351 tests, 97.7% coverage** (pytest + pytest-cov).
+
+### Security & accounts
+
+- **2FA (TOTP)** — `pyotp` + QR code. 8 single-use recovery codes
+  generated on enable. Login flow defers `login_user` until the OTP
+  succeeds, so a stolen password alone is not enough.
+- **Google SSO** — `Authlib` OpenID Connect. Auto-creates the user (with
+  default workspace) on first login; links to existing accounts by email.
+  Hidden when `GOOGLE_OAUTH_CLIENT_ID` is unset.
+- **Self-serve account deletion** — wipes owned workspaces, files,
+  conversations, API keys, and memberships. Anonymizes events to keep
+  audit trails. Required for GDPR/CCPA compliance.
+
+### Bulk operations & exports
+
+- **Bulk file delete** — `POST /file/bulk_delete/` with `ids[]`.
+- **Conversation export** — `GET /ask/c/<id>/export.md` returns a
+  Markdown transcript with sources.
+- **Audit log CSV export** — `GET /audit/export.csv` (admin only).
+
+### Ops
+
+- **`/healthz`** — liveness, no DB hit.
+- **`/readyz`** — DB SELECT 1 + reports configuration of every external
+  dependency.
+- **`/metrics`** — Prometheus exposition format. Per-endpoint request
+  counters and a duration histogram with the standard SRE buckets.
+- **Structured request logs** — every response emits an `INFO` log with
+  `endpoint`, `status`, `duration_ms`, `user_id`, `workspace_id`. Pipe
+  through any log shipper to get user-facing analytics for free.
+- **404 / 500 error pages** so the brand stays intact when something
+  breaks.
+
+### Self-documenting API
+
+- **OpenAPI 3** spec at `/api/v1/openapi.json`.
+- **Swagger UI** rendered at `/api/v1/docs` via the public CDN.
+
+### Deploy
+
+- **Dockerfile** (Python 3.11 slim + gunicorn, non-root user, healthcheck).
+- **docker-compose.yml** with a persistent SQLite volume.
+
+### Tests
+
+**419 tests, 97.5% coverage** (pytest + pytest-cov).
 
 ## Where we sit vs the competition
 
 | Capability                    | Filenergy | NotebookLM | Humata | Mendable | Glean |
 |-------------------------------|:---------:|:----------:|:------:|:--------:|:-----:|
-| Self-host                     | ✅        | ❌         | ❌     | ❌       | ❌    |
+| Self-host (Docker)            | ✅        | ❌         | ❌     | ❌       | ❌    |
 | Multi-tenant workspaces       | ✅        | ❌         | ❌     | ✅       | ✅    |
 | Collections / per-doc chat    | ✅        | ✅         | ✅     | ❌       | ❌    |
 | Streaming RAG with citations  | ✅        | ✅         | ✅     | ✅       | ✅    |
@@ -68,9 +113,13 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 | Outbound webhooks             | ✅        | ❌         | ❌     | ✅       | ✅    |
 | Audit log UI + CSV export     | ✅        | ❌         | ❌     | ❌       | ✅    |
 | Stripe-billed plan tiers      | ✅        | n/a        | ✅     | ✅       | ✅    |
-| Public REST API               | ✅        | ❌         | ✅     | ✅       | ✅    |
+| Public REST API + OpenAPI     | ✅        | ❌         | ✅     | ✅       | ✅    |
 | Public share links with TTL   | ✅        | ❌         | ❌     | ❌       | ❌    |
-| SSO (SAML/OIDC)               | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
+| 2FA (TOTP)                    | ✅        | ❌         | ❌     | ❌       | ✅    |
+| SSO (Google OIDC)             | ✅        | ✅         | ✅     | ✅       | ✅    |
+| Self-serve account deletion   | ✅        | ✅         | ❌     | ❌       | ❌    |
+| Prometheus `/metrics`         | ✅        | ❌         | ❌     | ❌       | ✅    |
+| SAML SSO                      | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
 | GDrive / Slack connectors     | ❌ roadmap| ❌         | ❌     | ✅       | ✅    |
 
 ## Setup
@@ -96,6 +145,19 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_PRO=price_...
 STRIPE_PRICE_TEAM=price_...
 FILENERGY_BASE_URL=https://your-domain.com
+
+# Google OAuth (optional — "Sign in with Google" hides without these)
+GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+
+# Email (optional — log adapter prints to stderr; smtp sends real mail)
+FILENERGY_EMAIL_ADAPTER=log     # or smtp
+FILENERGY_EMAIL_FROM=filenergy@yourdomain.com
+FILENERGY_SMTP_HOST=smtp.example.com
+FILENERGY_SMTP_PORT=587
+FILENERGY_SMTP_USER=...
+FILENERGY_SMTP_PASSWORD=...
+FILENERGY_SMTP_TLS=true
 
 # Misc
 FILENERGY_SECRET_KEY=change-me
@@ -247,16 +309,24 @@ python -m pytest --cov            # with coverage report
 Stubs in `tests/conftest.py` replace Voyage and Anthropic clients; Stripe
 is faked per-test via `sys.modules`. Zero network.
 
+## Deploy
+
+```bash
+docker compose up --build
+```
+
+Then point a reverse proxy (nginx, Caddy, Cloudflare) at port 5000 with
+TLS terminated.
+
 ## Roadmap
 
-- **SAML / OIDC SSO** for the Team tier.
+- **SAML SSO** (in addition to Google OIDC) for the Team tier.
 - **Connectors**: pull from Google Drive, Notion, Dropbox, Slack.
-- **OCR for scanned PDFs** via Tesseract.
+- **OCR for scanned PDFs** via Tesseract / DocumentAI.
 - **Browser extension** to clip a webpage into a workspace.
 - **Postgres + pgvector** as the production target (today's SQLite + JSON
   embeddings tops out around ~10K chunks per workspace).
 - **Alembic migrations** so production deploys can upgrade schema cleanly.
-- **2FA (TOTP)** for owner accounts.
 - **RQ / Celery** indexing queue for tenants who upload thousands of
   files at once.
-- **Conversation export** (Markdown, PDF) for compliance.
+- **PDF / DOCX export** of conversations (we already do Markdown).

@@ -344,3 +344,53 @@ def delete_conversation(conversation_id):
     if conversations.delete(g.user, g.workspace, conversation_id):
         return jsonify(ok=True)
     return jsonify(error="Conversation not found"), 404
+
+
+@ask_bp.route("/c/<int:conversation_id>/export.md")
+@login_required
+def export_markdown(conversation_id):
+    """Render the thread as Markdown so users can paste it into docs."""
+    from flask import Response
+
+    from filenergy.models import Conversation
+
+    conv = Conversation.query.filter_by(
+        id=conversation_id, user_id=g.user.id, workspace_id=g.workspace.id,
+    ).first()
+    if conv is None:
+        return "Not found", 404
+
+    lines: list[str] = [f"# {conv.title or 'Conversation'}", ""]
+    if conv.created_at:
+        lines.append(f"_Created {conv.created_at.strftime('%Y-%m-%d %H:%M')}_")
+        lines.append("")
+
+    for msg in conv.messages:
+        speaker = "**You**" if msg.role == "user" else "**Assistant**"
+        lines.append(speaker)
+        lines.append("")
+        lines.append(msg.content or "")
+        lines.append("")
+        if msg.role == "assistant" and msg.sources_json:
+            try:
+                import json as _json
+                sources = _json.loads(msg.sources_json)
+                if sources:
+                    lines.append("Sources:")
+                    for s in sources:
+                        lines.append(f"- {s.get('name', '?')}")
+                    lines.append("")
+            except Exception:
+                pass
+        lines.append("---")
+        lines.append("")
+
+    body = "\n".join(lines)
+    return Response(
+        body,
+        mimetype="text/markdown",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="conversation-{conv.id}.md"',
+        },
+    )

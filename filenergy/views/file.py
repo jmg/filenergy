@@ -123,6 +123,30 @@ def delete():
     return "ok"
 
 
+@file_bp.route("/bulk_delete/", methods=["POST"])
+@login_required
+def bulk_delete():
+    raw_ids = request.form.getlist("ids[]") or request.form.getlist("ids")
+    ids: list[int] = []
+    for x in raw_ids:
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            pass
+    if not ids:
+        return jsonify(deleted=0)
+
+    files = File.query.filter(
+        File.id.in_(ids), File.workspace_id == g.workspace.id,
+    ).all()
+    deleted = 0
+    svc = FileService()
+    for f in files:
+        if svc.delete(f):
+            deleted += 1
+    return jsonify(deleted=deleted)
+
+
 @file_bp.route("/reindex/", methods=["POST"])
 @login_required
 def reindex():

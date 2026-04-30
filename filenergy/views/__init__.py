@@ -1,9 +1,12 @@
+from flask import render_template
+
 from filenergy import app
 from filenergy.views.api_v1 import api_v1_bp
 from filenergy.views.ask import ask_bp
 from filenergy.views.audit import audit_bp
 from filenergy.views.billing import billing_bp
 from filenergy.views.collections import collections_bp
+from filenergy.views.docs import docs_bp
 from filenergy.views.file import file_bp
 from filenergy.views.health import health_bp
 from filenergy.views.index import index_bp
@@ -23,4 +26,15 @@ app.register_blueprint(collections_bp, url_prefix="/collections")
 app.register_blueprint(share_bp, url_prefix="/s")
 app.register_blueprint(billing_bp, url_prefix="/webhooks")
 app.register_blueprint(api_v1_bp, url_prefix="/api/v1")
+app.register_blueprint(docs_bp, url_prefix="/api/v1")
 app.register_blueprint(health_bp)
+
+
+@app.errorhandler(404)
+def _not_found(_err):
+    return render_template("errors/404.html"), 404
+
+
+@app.errorhandler(500)
+def _internal_error(_err):
+    return render_template("errors/500.html"), 500

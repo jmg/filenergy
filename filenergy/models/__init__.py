@@ -37,6 +37,18 @@ class User(BaseModel):
     email = db.Column(db.String(255), unique=True)
     is_superuser = db.Column(db.Boolean(), default=False)
 
+    # Federated identity (Google OAuth, etc.)
+    google_id = db.Column(db.String(64), unique=True, nullable=True, index=True)
+
+    # 2FA
+    totp_secret = db.Column(db.String(64), nullable=True)
+    totp_enabled_at = db.Column(db.DateTime, nullable=True)
+    recovery_codes_json = db.Column(db.Text, nullable=True)  # list of hashed codes
+
+    @property
+    def totp_enabled(self) -> bool:
+        return bool(self.totp_secret) and self.totp_enabled_at is not None
+
     @property
     def is_authenticated(self):
         return True
@@ -56,6 +68,8 @@ class User(BaseModel):
         self.password = generate_password_hash(password)
 
     def check_password(self, password):
+        if not self.password:
+            return False
         return check_password_hash(self.password, password)
 
     def __str__(self):

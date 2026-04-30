@@ -1,0 +1,35 @@
+{% extends "settings/_layout.html" %}
+
+{% block header %}Security{% endblock %}
+
+{% block settings %}
+<div class="card">
+  <h3>Two-factor authentication</h3>
+  {% if totp_enabled %}
+    <p>2FA is <strong style="color:#155724">on</strong>.</p>
+    <form method="POST" action="{{ url_for('settings.totp_disable') }}" style="display:inline">
+      <button class="btn btn-default danger" type="submit">Disable 2FA</button>
+    </form>
+    <form method="POST" action="{{ url_for('settings.totp_regenerate') }}" style="display:inline">
+      <button class="btn btn-default" type="submit">Regenerate recovery codes</button>
+    </form>
+  {% else %}
+    <p>2FA is off. Adds a second factor on login using any TOTP app
+       (1Password, Authy, Google Authenticator, etc.).</p>
+    <form method="POST" action="{{ url_for('settings.totp_start') }}">
+      <button class="btn btn-primary" type="submit">Enable 2FA</button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="card" style="border-color:#fdd;">
+  <h3 style="color:#a00">Delete account</h3>
+  <p>This is permanent. Workspaces you own — including their files,
+     conversations, and webhooks — are wiped.</p>
+  <form method="POST" action="{{ url_for('settings.delete_account') }}"
+        onsubmit="return confirm('Really delete your account? This cannot be undone.');">
+    <p><input type="text" name="confirm" placeholder="Type your email to confirm" required></p>
+    <button class="btn btn-danger" type="submit">Delete my account</button>
+  </form>
+</div>
+{% endblock %}
