@@ -579,7 +579,7 @@ def test_slack_channel_transcript_history_failure(monkeypatch):
 
     monkeypatch.setattr("urllib.request.urlopen", boom)
     from filenergy.services.connectors import _slack_channel_transcript
-    assert _slack_channel_transcript("C", {"Authorization": "x"}, 100) == ""
+    assert _slack_channel_transcript("C", {"Authorization": "x"}, 100) == ("", "")
 
 
 def test_slack_channel_transcript_not_ok(monkeypatch):
@@ -588,4 +588,4 @@ def test_slack_channel_transcript_not_ok(monkeypatch):
         (lambda r: True, json.dumps({"ok": False, "error": "rate_limited"})),
     ])
     from filenergy.services.connectors import _slack_channel_transcript
-    assert _slack_channel_transcript("C", {"Authorization": "x"}, 100) == ""
+    assert _slack_channel_transcript("C", {"Authorization": "x"}, 100) == ("", "")

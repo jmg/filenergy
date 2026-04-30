@@ -180,18 +180,24 @@ class GoogleDriveConnector(BaseConnector):
 
     def sync(self, account: ConnectorAccount, *, user, workspace,
              max_files: int = 25) -> dict:
+        """Incremental: only ingest files modified after the saved cursor.
+
+        Drive's `q` parameter takes RFC-3339 `modifiedTime` so we resume
+        from `account.sync_cursor` instead of re-listing the whole drive
+        each tick.
+        """
         access = self._ensure_fresh(account)
         headers = {"Authorization": f"Bearer {access}"}
 
-        listing = _get_json(
-            _DRIVE_LIST_URL,
-            params={
-                "pageSize": str(max_files),
-                "fields": "files(id,name,mimeType,modifiedTime,size)",
-                "orderBy": "modifiedTime desc",
-            },
-            headers=headers,
-        )
+        params = {
+            "pageSize": str(max_files),
+            "fields": "files(id,name,mimeType,modifiedTime,size)",
+            "orderBy": "modifiedTime desc",
+        }
+        if account.sync_cursor:
+            params["q"] = f"modifiedTime > '{account.sync_cursor}'"
+
+        listing = _get_json(_DRIVE_LIST_URL, params=params, headers=headers)
         items = listing.get("files", [])
 
         from filenergy.models import File
@@ -217,6 +223,9 @@ class GoogleDriveConnector(BaseConnector):
             )
             created += 1
 
+        # Cursor = newest modifiedTime we saw (already DESC-sorted).
+        if items and items[0].get("modifiedTime"):
+            account.sync_cursor = items[0]["modifiedTime"]
         account.last_synced_at = utcnow()
         account.last_error = None
         db.session.commit()
@@ -338,11 +347,16 @@ class NotionConnector(BaseConnector):
             "Notion-Version": _NOTION_API_VERSION,
             "Content-Type": "application/json",
         }
-        result = _post_json(_NOTION_SEARCH_URL, {
+        body: dict = {
             "filter": {"property": "object", "value": "page"},
             "page_size": max_pages,
-        }, headers=headers)
+        }
+        # Resume from where we left off via Notion's next_cursor.
+        if account.sync_cursor:
+            body["start_cursor"] = account.sync_cursor
+        result = _post_json(_NOTION_SEARCH_URL, body, headers=headers)
         pages = result.get("results", [])
+        next_cursor = result.get("next_cursor")
 
         from filenergy.models import File
         created = 0
@@ -367,6 +381,9 @@ class NotionConnector(BaseConnector):
             )
             created += 1
 
+        # Save the next page cursor; clear it when the result set is exhausted
+        # so the following sync starts from the beginning again.
+        account.sync_cursor = next_cursor or None
         account.last_synced_at = utcnow()
         account.last_error = None
         db.session.commit()
@@ -505,17 +522,21 @@ class DropboxConnector(BaseConnector):
 
     def sync(self, account: ConnectorAccount, *, user, workspace,
              max_files: int = 50) -> dict:
+        """Dropbox is delta-native via list_folder/continue + cursors."""
         access = self._ensure_fresh(account)
         headers = {
             "Authorization": f"Bearer {access}",
             "Content-Type": "application/json",
         }
-        listing = _post_json(_DROPBOX_LIST_URL, {
-            "path": "",
-            "recursive": False,
-            "limit": max_files,
-        }, headers=headers)
+        if account.sync_cursor:
+            url = _DROPBOX_LIST_URL + "/continue"
+            body = {"cursor": account.sync_cursor}
+        else:
+            url = _DROPBOX_LIST_URL
+            body = {"path": "", "recursive": False, "limit": max_files}
+        listing = _post_json(url, body, headers=headers)
         entries = listing.get("entries", [])
+        next_cursor = listing.get("cursor")
 
         from filenergy.models import File
         created = 0
@@ -546,6 +567,7 @@ class DropboxConnector(BaseConnector):
             )
             created += 1
 
+        account.sync_cursor = next_cursor or account.sync_cursor
         account.last_synced_at = utcnow()
         account.last_error = None
         db.session.commit()
@@ -640,7 +662,14 @@ class SlackConnector(BaseConnector):
 
     def sync(self, account: ConnectorAccount, *, user, workspace,
              max_channels: int = 5, max_messages: int = 200) -> dict:
+        """Incremental: pull only messages newer than `oldest` cursor.
+
+        We append the new transcript to the existing per-channel file
+        instead of writing a fresh one each tick, so the conversation
+        grows over time.
+        """
         headers = {"Authorization": f"Bearer {account.access_token}"}
+        oldest = account.sync_cursor or "0"
 
         listing = _get_json(
             _SLACK_LIST_CHANNELS_URL,
@@ -654,20 +683,29 @@ class SlackConnector(BaseConnector):
         from filenergy.models import File
         created = 0
         skipped = 0
+        max_ts_seen = oldest
         for channel in channels:
             name = channel.get("name") or "channel"
             file_name = f"slack-{name}.txt"
+            transcript, latest_ts = _slack_channel_transcript(
+                channel["id"], headers, max_messages, oldest=oldest,
+            )
+            if not transcript:
+                skipped += 1
+                continue
+            if latest_ts and (not max_ts_seen or latest_ts > max_ts_seen):
+                max_ts_seen = latest_ts
             existing = File.query.filter_by(
                 workspace_id=workspace.id, name=file_name,
             ).first()
             if existing is not None:
-                skipped += 1
-                continue
-            transcript = _slack_channel_transcript(
-                channel["id"], headers, max_messages
-            )
-            if not transcript:
-                skipped += 1
+                # Append delta to the existing transcript.
+                try:
+                    with open(existing.path, "ab") as fd:
+                        fd.write(b"\n" + transcript.encode("utf-8"))
+                    skipped += 1  # not a "new file"
+                except OSError:
+                    skipped += 1
                 continue
             ingestion.materialize_blob(
                 user=user, workspace=workspace, name=file_name,
@@ -675,32 +713,40 @@ class SlackConnector(BaseConnector):
             )
             created += 1
 
+        if max_ts_seen and max_ts_seen != oldest:
+            account.sync_cursor = max_ts_seen
         account.last_synced_at = utcnow()
         account.last_error = None
         db.session.commit()
         return {"created": created, "skipped": skipped}
 
 
-def _slack_channel_transcript(channel_id: str, headers: dict, limit: int) -> str:
+def _slack_channel_transcript(channel_id: str, headers: dict, limit: int,
+                              *, oldest: str = "0") -> tuple[str, str]:
+    """Return (transcript, latest_timestamp). Empty string + "" on failure."""
     try:
         body = _get_json(
             _SLACK_HISTORY_URL,
-            params={"channel": channel_id, "limit": str(limit)},
+            params={"channel": channel_id, "limit": str(limit), "oldest": oldest},
             headers=headers,
         )
     except ConnectorError as exc:
         log.warning("Slack history failed for %s: %s", channel_id, exc)
-        return ""
+        return "", ""
     if not body.get("ok"):
-        return ""
+        return "", ""
     lines = []
+    latest_ts = ""
     for msg in reversed(body.get("messages", [])):  # oldest first
         text = msg.get("text") or ""
+        ts = msg.get("ts") or ""
+        if ts and ts > latest_ts:
+            latest_ts = ts
         if not text:
             continue
         user_id = msg.get("user") or msg.get("bot_id") or "?"
         lines.append(f"{user_id}: {text}")
-    return "\n".join(lines)
+    return "\n".join(lines), latest_ts
 
 
 # ---------------------------------------------------------------------------

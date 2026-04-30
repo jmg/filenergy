@@ -60,8 +60,28 @@
   {% if top_files %}
   <div class="chart-title">Most-cited files</div>
   <ul class="top-files">
-    {% for name, hits in top_files %}
-      <li>{{ name }} <span style="color:#888;">· {{ hits }} citations</span></li>
+    {% for fid, name, url, hits in top_files %}
+      <li>
+        <a href="{{ url_for('file.detail', file_id=fid) }}">{{ name }}</a>
+        <span style="color:#888;">· {{ hits }} citations</span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if top_chunks %}
+  <div class="chart-title" style="margin-top:18px;">Most-cited chunks</div>
+  <ul class="top-files">
+    {% for cid, pos, content, fname, furl, hits in top_chunks %}
+      <li>
+        <strong>{{ fname }}</strong>
+        <span style="color:#888;">· chunk #{{ pos }} · {{ hits }} citations</span>
+        <div style="color:#555; font-size:13px; margin-top:2px;
+                    overflow:hidden; text-overflow:ellipsis;
+                    white-space:nowrap; max-width:100%;">
+          {{ (content or '')[:200] }}{% if content and content|length > 200 %}…{% endif %}
+        </div>
+      </li>
     {% endfor %}
   </ul>
   {% endif %}

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from filenergy import db
+from filenergy.services.crypto import EncryptedText
 
 
 def utcnow():
@@ -41,7 +42,7 @@ class User(BaseModel):
     google_id = db.Column(db.String(64), unique=True, nullable=True, index=True)
 
     # 2FA
-    totp_secret = db.Column(db.String(64), nullable=True)
+    totp_secret = db.Column(EncryptedText, nullable=True)
     totp_enabled_at = db.Column(db.DateTime, nullable=True)
     recovery_codes_json = db.Column(db.Text, nullable=True)  # list of hashed codes
 
@@ -181,7 +182,7 @@ class File(BaseModel):
 
     indexed_at = db.Column(db.DateTime, nullable=True)
     index_error = db.Column(db.Text, nullable=True)
-    text_content = db.Column(db.Text, nullable=True)
+    text_content = db.Column(EncryptedText, nullable=True)
     summary = db.Column(db.Text, nullable=True)
     suggested_questions_json = db.Column(db.Text, nullable=True)
 
@@ -260,7 +261,12 @@ class Chunk(BaseModel):
     file_id = db.Column(db.Integer, db.ForeignKey("file.id"), index=True)
     position = db.Column(db.Integer)
     content = db.Column(db.Text)
-    embedding = db.Column(db.Text)
+    embedding = db.Column(EncryptedText)
+
+    citations = db.relationship(
+        "MessageCitation", backref="chunk", lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
 
 
 class Conversation(BaseModel):
@@ -295,6 +301,31 @@ class Message(BaseModel):
     role = db.Column(db.String(16))
     content = db.Column(db.Text)
     sources_json = db.Column(db.Text, nullable=True)
+
+    citations = db.relationship(
+        "MessageCitation", backref="message", lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
+
+
+class MessageCitation(BaseModel):
+    """One assistant turn → one cited chunk + the retrieval score.
+
+    `Message.sources_json` stays the canonical render shape; this table
+    is the queryable index that lets the dashboard answer "which chunks
+    actually got used?" without re-parsing JSON in app code.
+    """
+
+    __tablename__ = "message_citation"
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(
+        db.Integer, db.ForeignKey("message.id"), index=True
+    )
+    chunk_id = db.Column(
+        db.Integer, db.ForeignKey("chunk.id"), index=True
+    )
+    score = db.Column(db.Float)
 
 
 class Event(BaseModel):
@@ -417,8 +448,9 @@ class ConnectorAccount(BaseModel):
     workspace_id = db.Column(db.Integer, db.ForeignKey("workspace.id"), index=True)
     kind = db.Column(db.String(32), index=True)  # "google_drive", etc.
     account_label = db.Column(db.String(255))  # email / handle
-    access_token = db.Column(db.Text)
-    refresh_token = db.Column(db.Text, nullable=True)
+    access_token = db.Column(EncryptedText)
+    refresh_token = db.Column(EncryptedText, nullable=True)
+    sync_cursor = db.Column(db.Text, nullable=True)
     expires_at = db.Column(db.DateTime, nullable=True)
     last_synced_at = db.Column(db.DateTime, nullable=True)
     last_error = db.Column(db.Text, nullable=True)

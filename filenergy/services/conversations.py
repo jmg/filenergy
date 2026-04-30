@@ -54,7 +54,8 @@ def add_user_message(conversation: Conversation, text: str) -> Message:
 
 
 def add_assistant_message(
-    conversation: Conversation, text: str, sources
+    conversation: Conversation, text: str, sources,
+    *, chunk_citations: list | None = None,
 ) -> Message:
     if hasattr(sources[0] if sources else None, "__dataclass_fields__"):
         sources_payload = [asdict(s) for s in sources]
@@ -69,6 +70,29 @@ def add_assistant_message(
     )
     db.session.add(msg)
     db.session.commit()
+
+    # Per-chunk provenance (queryable index for the dashboard).
+    if chunk_citations:
+        from filenergy.models import MessageCitation
+
+        for entry in chunk_citations:
+            try:
+                chunk_id, score = entry
+            except (TypeError, ValueError):
+                continue
+            if chunk_id is None:
+                continue
+            try:
+                cid = int(chunk_id)
+                s = float(score)
+            except (TypeError, ValueError):
+                continue
+            db.session.add(MessageCitation(
+                message_id=msg.id,
+                chunk_id=cid,
+                score=s,
+            ))
+        db.session.commit()
     return msg
 
 

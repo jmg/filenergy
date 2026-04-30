@@ -13,11 +13,13 @@ from sqlalchemy import func
 from filenergy import db
 from filenergy.models import (
     ApiKey,
+    Chunk,
     Collection,
     Conversation,
     Event,
     File,
     Message,
+    MessageCitation,
     WorkspaceMember,
     utcnow,
 )
@@ -75,16 +77,33 @@ def index():
     uploads = _daily_counts("file.uploaded", ws_id)
     asks = _daily_counts("ask.question", ws_id)
 
-    # Top-asked files (by count of ask.question events that mentioned them).
+    # Most-cited files (real chunk-level provenance from MessageCitation).
     top_files = (
-        db.session.query(File.name, func.count(Event.id).label("hits"))
-        .join(Event, Event.workspace_id == File.workspace_id)
-        .filter(
-            File.workspace_id == ws_id,
-            Event.type == "ask.answered",
+        db.session.query(
+            File.id, File.name, File.url,
+            func.count(MessageCitation.id).label("hits"),
         )
+        .join(Chunk, Chunk.file_id == File.id)
+        .join(MessageCitation, MessageCitation.chunk_id == Chunk.id)
+        .filter(File.workspace_id == ws_id)
         .group_by(File.id)
-        .order_by(func.count(Event.id).desc())
+        .order_by(func.count(MessageCitation.id).desc())
+        .limit(5)
+        .all()
+    )
+
+    # Most-cited chunks across the workspace (with snippet for the dashboard).
+    top_chunks = (
+        db.session.query(
+            Chunk.id, Chunk.position, Chunk.content,
+            File.name, File.url,
+            func.count(MessageCitation.id).label("hits"),
+        )
+        .join(File, File.id == Chunk.file_id)
+        .join(MessageCitation, MessageCitation.chunk_id == Chunk.id)
+        .filter(File.workspace_id == ws_id)
+        .group_by(Chunk.id)
+        .order_by(func.count(MessageCitation.id).desc())
         .limit(5)
         .all()
     )
@@ -95,5 +114,6 @@ def index():
         uploads=uploads,
         asks=asks,
         top_files=top_files,
+        top_chunks=top_chunks,
         usage=billing.usage_summary(g.workspace),
     )

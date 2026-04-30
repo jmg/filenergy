@@ -213,9 +213,45 @@ and when `FILENERGY_SYNC_SCHEDULER=false`.
   `/file/from_url/` with `Authorization: Bearer …`. The endpoint accepts
   either session cookies or API keys.
 
+### Encryption at rest
+
+- `services/crypto.py` exposes a Fernet-backed `EncryptedText` SQLAlchemy
+  type. Sensitive columns — `File.text_content`, `Chunk.embedding`,
+  `ConnectorAccount.access_token`/`refresh_token`, `User.totp_secret` —
+  go through it.
+- Activate by setting `FILENERGY_ENCRYPTION_KEY` (mint one with
+  `python manage.py generate-encryption-key`). Without the key, columns
+  round-trip as plaintext — backwards compatible with old data and dev
+  environments.
+- New writes get an `enc:` prefix; old plaintext rows coexist with new
+  encrypted ones. Run `python manage.py reencrypt` once after enabling
+  to back-fill.
+
+### Chunk-level provenance
+
+Every assistant turn now creates `MessageCitation` rows linking
+the `Message` to each retrieved `Chunk` + the cosine score. The dashboard
+surfaces a "Most-cited chunks" panel with the snippet inline, and the
+"Most-cited files" panel now uses real citation counts instead of the
+prior coarse `ask.answered` event proxy.
+
+### Incremental connector sync
+
+`ConnectorAccount.sync_cursor` is the resume token; each connector uses
+its native cursor primitive:
+
+- **Drive** — `q=modifiedTime > '<RFC3339>'`, cursor = newest
+  `modifiedTime` from the latest page.
+- **Notion** — `start_cursor` / `next_cursor`. Cleared when the result
+  set is exhausted so the next tick starts over.
+- **Dropbox** — first call hits `/2/files/list_folder`, subsequent calls
+  hit `/list_folder/continue` with the saved cursor (delta-native).
+- **Slack** — `oldest=<ts>`. New deltas are appended to the existing
+  per-channel transcript file rather than written as fresh files.
+
 ### Tests
 
-**614 tests, 97.7% coverage** (pytest + pytest-cov).
+**650 tests, 97.5% coverage** (pytest + pytest-cov).
 
 ## Where we sit vs the competition
 
@@ -446,11 +482,11 @@ TLS terminated.
 
 ## Roadmap
 
-- **Per-connector OAuth scope tightening** (Slack/Notion currently ask
-  broader scopes than strictly needed for read-only sync).
-- **Connector incremental sync** with cursors / `modifiedTime > since`
-  (today's loop pulls a recent slice and dedupes by name).
-- **More chunk-level provenance** on dashboard (which chunk got cited,
-  not just which file).
-- **Encryption at rest** for `embedding`, `text_content`, `access_token`
-  columns (envelope encryption with a KEK in env / KMS).
+- **Per-connector OAuth scope tightening** (Slack still asks `groups:*`
+  scopes; Notion + Dropbox could be narrower).
+- **KEK rotation** via `MultiFernet` so secrets can rotate without a
+  full re-encrypt pass.
+- **Citation drill-through** — click a chunk on the dashboard and jump
+  to the source paragraph in the file detail view.
+- **Cron / RQ-driven scheduler** (today's daemon thread is fine for one
+  Filenergy process; scale-out needs a real worker).
