@@ -1,9 +1,12 @@
-"""Workspace switcher, member admin, and invitation flow."""
-from flask import Blueprint, abort, flash, g, redirect, request, url_for
+"""Workspace switcher, member admin, invitations, and data export."""
+from flask import (
+    Blueprint, Response, abort, flash, g, redirect, request, url_for,
+)
 from flask_login import login_required
 
+from filenergy import db
 from filenergy.services import email as email_service
-from filenergy.services import events, workspaces
+from filenergy.services import events, exporting, workspaces
 
 workspace_bp = Blueprint("workspace", __name__)
 
@@ -84,3 +87,45 @@ def remove_member(user_id):
             user=g.user, workspace_id=g.workspace.id, removed_user_id=user_id,
         )
     return redirect(url_for("settings.workspace"))
+
+
+@workspace_bp.route("/policy", methods=["POST"])
+@login_required
+def update_policy():
+    """Owner-only: toggle workspace-wide policies (e.g. require 2FA)."""
+    if not workspaces.require_role(g.workspace, g.user, "owner"):
+        return "Forbidden", 403
+    require_2fa = bool(request.form.get("require_2fa"))
+    g.workspace.require_2fa = require_2fa
+    db.session.commit()
+    events.log_event(
+        events.WORKSPACE_POLICY_UPDATED,
+        user=g.user, workspace_id=g.workspace.id, require_2fa=require_2fa,
+    )
+    flash("Policy saved.", "success")
+    return redirect(url_for("settings.workspace"))
+
+
+@workspace_bp.route("/export")
+@login_required
+def export():
+    """ZIP bundle of every artifact in the current workspace.
+
+    Owner / admin only — files belong to the workspace, not to whoever
+    happens to be a member today.
+    """
+    if not workspaces.require_role(g.workspace, g.user, "owner", "admin"):
+        return "Forbidden", 403
+    payload = exporting.workspace_zip(g.workspace)
+    events.log_event(
+        events.WORKSPACE_EXPORTED,
+        user=g.user, workspace_id=g.workspace.id, bytes=len(payload),
+    )
+    return Response(
+        payload,
+        mimetype="application/zip",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="{g.workspace.slug}.zip"',
+        },
+    )

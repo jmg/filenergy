@@ -1,85 +1,57 @@
 {% extends "base.html" %}
 
-{% block header %}{% endblock %}
-
-{% block css %}
-<style>
-  .ask-shell { display: flex; gap: 20px; max-width: 1100px; }
-  .ask-side { width: 220px; flex-shrink: 0; }
-  .ask-side h4 { margin: 0 0 10px; font-size: 13px; color: #666; text-transform: uppercase; }
-  .ask-side .new { display: block; padding: 8px 12px; background: #2a4d8f; color: #fff; border-radius: 6px; text-align: center; margin-bottom: 12px; }
-  .ask-side .conv-link { display: block; padding: 8px 10px; border-radius: 4px; color: #333; font-size: 13px; line-height: 1.3; margin-bottom: 4px; text-decoration: none; }
-  .ask-side .conv-link:hover { background: #f0f0f0; }
-  .ask-side .conv-link.active { background: #e9eef5; font-weight: 500; }
-
-  .ask-main { flex: 1; }
-  .config-warning { background: #fff8dc; border: 1px solid #e0d090; padding: 10px; margin-bottom: 12px; border-radius: 6px; }
-
-  .thread { min-height: 320px; max-height: 60vh; overflow-y: auto; padding: 8px 4px 12px; }
-  .message { padding: 12px 14px; border-radius: 8px; margin-bottom: 10px; }
-  .message.user { background: #eef3f8; }
-  .message.assistant { background: #fafafa; border: 1px solid #eee; }
-  .message .body { white-space: pre-wrap; }
-  .message .body p { margin: 0 0 8px; }
-  .message .body p:last-child { margin-bottom: 0; }
-  .message .body code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
-  .message .body pre { background: #f0f0f0; padding: 8px; border-radius: 4px; overflow-x: auto; }
-  .message .body ul, .message .body ol { margin: 6px 0 6px 22px; }
-  .message .body strong { font-weight: 600; }
-  .message .sources { font-size: 12px; margin-top: 8px; color: #555; }
-  .message .sources a { margin-right: 8px; }
-  .message .pending { font-style: italic; color: #888; }
-
-  form.ask-form textarea { width: 100%; min-height: 70px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
-  form.ask-form .row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
-  form.ask-form .row small { color: #888; }
-</style>
-{% endblock %}
-
 {% block content %}
+<div class="grid gap-6 lg:grid-cols-[260px_1fr]">
 
-<div class="ask-shell">
-
-  <aside class="ask-side">
-    <a class="new" href="/ask/">+ New conversation</a>
-    <h4>Recent</h4>
-    {% for c in conversations %}
-      <a class="conv-link {% if active_conversation and active_conversation.id == c.id %}active{% endif %}"
-         href="/ask/c/{{c.id}}">{{ c.title or 'Untitled' }}</a>
-    {% else %}
-      <p style="color:#aaa;font-size:13px;">No threads yet.</p>
-    {% endfor %}
+  <aside class="space-y-3">
+    <a class="btn btn-primary w-full justify-center" href="/ask/">+ New conversation</a>
+    <h4 class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent</h4>
+    <nav class="space-y-1">
+      {% for c in conversations %}
+        <a href="/ask/c/{{c.id}}"
+           class="{% if active_conversation and active_conversation.id == c.id %}nav-link-active{% else %}nav-link{% endif %} truncate text-sm">
+          {{ c.title or 'Untitled' }}
+        </a>
+      {% else %}
+        <p class="text-xs text-slate-400">No threads yet.</p>
+      {% endfor %}
+    </nav>
   </aside>
 
-  <main class="ask-main">
+  <main class="min-w-0 space-y-4">
 
     {% if not status.anthropic or not status.embeddings %}
-    <div class="config-warning">
+    <div class="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
       Chat is not fully configured. You need
-      <code>ANTHROPIC_API_KEY</code> ({% if status.anthropic %}OK{% else %}missing{% endif %})
-      and <code>VOYAGE_API_KEY</code> ({% if status.embeddings %}OK{% else %}missing{% endif %}).
+      <code class="rounded bg-amber-100 px-1">ANTHROPIC_API_KEY</code>
+      ({% if status.anthropic %}OK{% else %}missing{% endif %})
+      and <code class="rounded bg-amber-100 px-1">VOYAGE_API_KEY</code>
+      ({% if status.embeddings %}OK{% else %}missing{% endif %}).
     </div>
     {% endif %}
 
-    <div id="thread" class="thread"
+    <div id="thread"
+         class="max-h-[60vh] min-h-[320px] space-y-3 overflow-y-auto rounded border border-slate-200 bg-white p-4"
          data-conversation-id="{% if active_conversation %}{{active_conversation.id}}{% endif %}">
       {% for m in (history or []) %}
-        <div class="message {{m.role}}">
-          <div class="body">{{ m.content }}</div>
+        <div class="message {{m.role}} rounded-lg p-3 {% if m.role == 'user' %}bg-brand-50 ml-8{% else %}bg-slate-50 mr-8{% endif %}">
+          <div class="body prose prose-sm max-w-none">{{ m.content }}</div>
           {% if m.sources_json %}
-            <div class="sources" data-sources='{{ m.sources_json }}'>
-              {% set srcs = m.sources_json | safe %}
-              Sources:
-            </div>
+            <div class="sources mt-2 text-xs text-slate-600"
+                 data-sources='{{ m.sources_json }}'>Sources:</div>
           {% endif %}
         </div>
       {% endfor %}
     </div>
 
-    <form class="ask-form" id="ask-form" onsubmit="askQuestion(); return false;">
-      <textarea id="question" placeholder="Ask anything about your library..." required></textarea>
-      <div class="row">
-        <small>Streamed answers via SSE. Markdown is rendered. Press Cmd/Ctrl+Enter to send.</small>
+    <form id="ask-form" class="card space-y-2"
+          onsubmit="askQuestion(); return false;">
+      <textarea id="question" class="input min-h-[90px] resize-y"
+                placeholder="Ask anything about your library..." required></textarea>
+      <div class="flex items-center justify-between">
+        <small class="text-slate-500">
+          Streamed via SSE. Press <kbd class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">Cmd/Ctrl+Enter</kbd> to send.
+        </small>
         <button type="submit" class="btn btn-primary">Send</button>
       </div>
     </form>
@@ -92,29 +64,24 @@
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  // Tiny markdown renderer: bold, italic, code, lists, line breaks. Good enough.
   function renderMarkdown(text) {
     var html = escapeHtml(text);
-    html = html.replace(/```([\s\S]*?)```/g, function(_, c){ return '<pre>'+c.trim()+'</pre>'; });
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    html = html.replace(/```([\s\S]*?)```/g, function(_, c){ return '<pre class="rounded bg-slate-900 text-slate-100 p-3 overflow-x-auto text-xs">'+c.trim()+'</pre>'; });
+    html = html.replace(/`([^`]+)`/g, '<code class="rounded bg-slate-100 px-1 text-xs">$1</code>');
     html = html.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/(^|\n)- (.*)/g, '$1<li>$2</li>');
-    html = html.replace(/(<li>[\s\S]*?<\/li>)(\n(?!<li>)|$)/g, '<ul>$1</ul>$2');
-    html = html.split(/\n\n+/).map(function(p){ return /^<(ul|pre|h\d)/.test(p) ? p : '<p>'+p.replace(/\n/g,'<br>')+'</p>'; }).join('');
+    html = html.replace(/(<li>[\s\S]*?<\/li>)(\n(?!<li>)|$)/g, '<ul class="ml-5 list-disc">$1</ul>$2');
+    html = html.split(/\n\n+/).map(function(p){ return /^<(ul|pre|h\d)/.test(p) ? p : '<p class="mb-2">'+p.replace(/\n/g,'<br>')+'</p>'; }).join('');
     return html;
   }
 
-  function getConversationId() {
-    return $('#thread').data('conversation-id') || null;
-  }
-
-  function setConversationId(id) {
-    $('#thread').data('conversation-id', id);
-  }
+  function getConversationId() { return $('#thread').data('conversation-id') || null; }
+  function setConversationId(id) { $('#thread').data('conversation-id', id); }
 
   function appendMessage(role, html) {
-    var $el = $('<div class="message"></div>').addClass(role);
-    $el.append('<div class="body">'+html+'</div>');
+    var bg = role === 'user' ? 'bg-brand-50 ml-8' : 'bg-slate-50 mr-8';
+    var $el = $('<div class="message rounded-lg p-3 ' + bg + '"></div>');
+    $el.append('<div class="body prose prose-sm max-w-none">'+html+'</div>');
     $('#thread').append($el);
     $el[0].scrollIntoView({behavior:'smooth', block:'end'});
     return $el;
@@ -123,9 +90,9 @@
   function appendSources($msg, sources) {
     if (!sources || !sources.length) return;
     var html = sources.map(function(s){
-      return '<a href="/file/download/?h='+encodeURIComponent(s.url)+'">'+escapeHtml(s.name)+'</a>';
+      return '<a class="text-brand-600 hover:underline mr-2" href="/file/download/?h='+encodeURIComponent(s.url)+'">'+escapeHtml(s.name)+'</a>';
     }).join('');
-    $msg.append('<div class="sources">Sources: '+html+'</div>');
+    $msg.append('<div class="mt-2 text-xs text-slate-600">Sources: '+html+'</div>');
   }
 
   function askQuestion() {
@@ -136,7 +103,7 @@
     $('#ask-form button').prop('disabled', true);
 
     appendMessage('user', escapeHtml(question));
-    var $assistant = appendMessage('assistant', '<span class="pending">Thinking...</span>');
+    var $assistant = appendMessage('assistant', '<span class="italic text-slate-500">Thinking...</span>');
 
     var payload = JSON.stringify({question: question, conversation_id: getConversationId()});
     var xhr = new XMLHttpRequest();
@@ -175,7 +142,7 @@
           sources = parsed.sources || [];
           appendSources($assistant, sources);
         } else if (ev === 'error') {
-          $assistant.find('.body').html('<span style="color:#a00">'+escapeHtml(parsed.message || 'error')+'</span>');
+          $assistant.find('.body').html('<span class="text-rose-600">'+escapeHtml(parsed.message || 'error')+'</span>');
         }
       });
       if (xhr.readyState === 4) {
@@ -185,7 +152,7 @@
     };
 
     xhr.onerror = function() {
-      $assistant.find('.body').html('<span style="color:#a00">Network error.</span>');
+      $assistant.find('.body').html('<span class="text-rose-600">Network error.</span>');
       $q.prop('disabled', false);
       $('#ask-form button').prop('disabled', false);
     };
@@ -196,21 +163,19 @@
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { askQuestion(); }
   });
 
-  // Render saved sources from history (if present in templates).
   $('.message .sources[data-sources]').each(function() {
     var $el = $(this);
     try {
       var sources = JSON.parse($el.attr('data-sources'));
       var html = 'Sources: ' + sources.map(function(s){
-        return '<a href="/file/download/?h='+encodeURIComponent(s.url)+'">'+escapeHtml(s.name)+'</a>';
+        return '<a class="text-brand-600 hover:underline mr-2" href="/file/download/?h='+encodeURIComponent(s.url)+'">'+escapeHtml(s.name)+'</a>';
       }).join(' ');
       $el.html(html);
     } catch(e) {}
   });
-  // Re-render history bodies through the markdown renderer.
   $('.message .body').each(function() {
     var $b = $(this);
-    if ($b.children().length === 0) { // only plain text
+    if ($b.children().length === 0) {
       $b.html(renderMarkdown($b.text()));
     }
   });

@@ -1,11 +1,13 @@
 """User-facing settings: profile, API keys, workspace, billing."""
-from flask import Blueprint, flash, g, redirect, render_template, request, url_for
+from flask import (
+    Blueprint, Response, flash, g, redirect, render_template, request, url_for,
+)
 from flask_login import login_required
 
 from filenergy import db, settings as cfg
 from filenergy.services import (
-    api_keys, billing, events, sessions as session_service,
-    totp, webhooks, workspaces,
+    api_keys, billing, events, exporting, sessions as session_service,
+    totp, webauthn, webhooks, workspaces,
 )
 
 settings_bp = Blueprint("settings", __name__)
@@ -117,6 +119,61 @@ def security():
         has_pending_setup=bool(g.user.totp_secret) and not g.user.totp_enabled,
         active_sessions=session_service.list_active(g.user),
         current_session_id=current_session.id if current_session else None,
+        webauthn_supported=webauthn.is_supported(),
+        webauthn_credentials=webauthn.list_for_user(g.user),
+    )
+
+
+@settings_bp.route("/security/webauthn", methods=["POST"])
+@login_required
+def webauthn_register():
+    label = (request.form.get("label") or "").strip() or "Security key"
+    try:
+        cred = webauthn.register_stub(g.user, label=label)
+    except webauthn.WebAuthnError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("settings.security"))
+    events.log_event(
+        events.WEBAUTHN_REGISTERED, user=g.user, credential_id=cred.id,
+    )
+    flash("Passkey registered.", "success")
+    return redirect(url_for("settings.security"))
+
+
+@settings_bp.route("/security/webauthn/<int:cred_id>/delete", methods=["POST"])
+@login_required
+def webauthn_delete(cred_id):
+    if webauthn.delete(g.user, cred_id):
+        events.log_event(
+            events.WEBAUTHN_REMOVED, user=g.user, credential_id=cred_id,
+        )
+        flash("Passkey removed.", "success")
+    return redirect(url_for("settings.security"))
+
+
+@settings_bp.route("/notifications", methods=["POST"])
+@login_required
+def update_notifications():
+    g.user.weekly_digest = bool(request.form.get("weekly_digest"))
+    db.session.commit()
+    flash("Notification preferences saved.", "success")
+    return redirect(url_for("settings.workspace"))
+
+
+@settings_bp.route("/account/export")
+@login_required
+def export_account():
+    payload = exporting.user_zip(g.user)
+    events.log_event(
+        events.USER_EXPORTED, user=g.user, bytes=len(payload),
+    )
+    return Response(
+        payload,
+        mimetype="application/zip",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="filenergy-{g.user.id}.zip"',
+        },
     )
 
 

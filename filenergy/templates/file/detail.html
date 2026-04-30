@@ -1,68 +1,98 @@
 {% extends "base.html" %}
 
-{% block header %}{{ file.name }}{% endblock %}
-
 {% block content %}
-<div class="row well" style="max-width:760px;margin:auto;">
-  <p style="color:#666">
-    {{ "%.1f"|format((file.size_bytes or 0) / 1024) }} KB ·
-    uploaded {{ file.created_at.strftime('%Y-%m-%d') if file.created_at else '' }} ·
-    <span class="pill">{{ file.index_status }}</span>
-    {% if file.collection %}
-      · in <a href="{{ url_for('collections.view', slug=file.collection.slug) }}">{{ file.collection.name }}</a>
+<div class="mx-auto max-w-3xl space-y-6">
+  <div class="card">
+    <h2 class="text-xl font-semibold">{{ file.name }}</h2>
+    <p class="mt-1 text-sm text-slate-500">
+      {{ "%.1f"|format((file.size_bytes or 0) / 1024) }} KB ·
+      uploaded {{ file.created_at.strftime('%Y-%m-%d') if file.created_at else '' }} ·
+      <span class="pill pill-{{ 'success' if file.index_status == 'indexed' else 'warn' if file.index_status == 'pending' else 'error' }}">
+        {{ file.index_status }}
+      </span>
+      {% if file.collection %}
+        · in
+        <a class="text-brand-600 hover:underline"
+           href="{{ url_for('collections.view', slug=file.collection.slug) }}">
+          {{ file.collection.name }}
+        </a>
+      {% endif %}
+    </p>
+
+    {% if file.summary %}
+      <h4 class="mt-4 text-sm font-semibold text-slate-700">Summary</h4>
+      <p class="mt-1 text-sm text-slate-600">{{ file.summary }}</p>
     {% endif %}
-  </p>
 
-  {% if file.summary %}
-    <h4>Summary</h4>
-    <p>{{ file.summary }}</p>
-  {% endif %}
+    {% if file.suggested_questions %}
+      <h4 class="mt-4 text-sm font-semibold text-slate-700">Suggested questions</h4>
+      <ul class="mt-1 list-disc pl-5 text-sm">
+        {% for q in file.suggested_questions %}
+        <li>
+          <a class="text-brand-600 hover:underline"
+             href="{{ url_for('ask.index', file_id=file.id) }}#q-{{ loop.index }}">{{ q }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
 
-  {% if file.suggested_questions %}
-    <h4>Suggested questions</h4>
-    <ul>
-      {% for q in file.suggested_questions %}
-      <li>
-        <a href="{{ url_for('ask.index', file_id=file.id) }}#q-{{ loop.index }}">{{ q }}</a>
-      </li>
-      {% endfor %}
-    </ul>
-  {% endif %}
+    <div class="mt-4 flex gap-2">
+      <a class="btn btn-primary"
+         href="{{ url_for('ask.index', file_id=file.id) }}">Ask this file</a>
+      <a class="btn btn-ghost"
+         href="{{ url_for('file.download_post', h=file.url) }}">Download</a>
+    </div>
+  </div>
 
-  <p>
-    <a class="btn btn-primary" href="{{ url_for('ask.index', file_id=file.id) }}">Ask this file</a>
-    <a class="btn" href="{{ url_for('file.download_post', h=file.url) }}">Download</a>
-  </p>
-
-  <h4>Move to collection</h4>
-  <form method="POST" action="{{ url_for('collections.assign') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="file_id" value="{{ file.id }}">
-    <select name="collection_id">
-      <option value="">— No collection —</option>
-      {% for c in all_collections %}
-        <option value="{{ c.id }}" {% if file.collection_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-      {% endfor %}
-    </select>
-    <button class="btn" type="submit">Save</button>
-  </form>
+  <div class="card">
+    <h4 class="card-title">Move to collection</h4>
+    <form method="POST" action="{{ url_for('collections.assign') }}"
+          class="flex flex-wrap items-end gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="file_id" value="{{ file.id }}">
+      <div class="min-w-[14rem] flex-1">
+        <label class="label" for="collection_id">Collection</label>
+        <select class="input" id="collection_id" name="collection_id">
+          <option value="">— No collection —</option>
+          {% for c in all_collections %}
+            <option value="{{ c.id }}"
+                    {% if file.collection_id == c.id %}selected{% endif %}>
+              {{ c.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+  </div>
 
   {% if share_links_active %}
-    <h4>Active share links</h4>
-    <ul>
-    {% for link in share_links_active %}
-      <li>
-        <code>{{ url_for('share.landing', token=link.token, _external=True) }}</code>
-        — {{ link.download_count or 0 }} downloads
+  <div class="card">
+    <h4 class="card-title">Active share links</h4>
+    <ul class="space-y-1 text-sm">
+      {% for link in share_links_active %}
+      <li class="flex flex-wrap items-center gap-2">
+        <code class="break-all rounded bg-slate-100 px-1 py-0.5 text-xs">
+          {{ url_for('share.landing', token=link.token, _external=True) }}
+        </code>
+        <span class="text-xs text-slate-500">
+          — {{ link.download_count or 0 }} downloads
+        </span>
       </li>
-    {% endfor %}
+      {% endfor %}
     </ul>
+  </div>
   {% endif %}
 
   {% if file.text_content %}
-    <details style="margin-top:16px;">
-      <summary>Extracted text preview</summary>
-      <pre style="background:#f5f5f5;padding:10px;border-radius:6px;font-size:12px;max-height:300px;overflow:auto;">{{ file.text_content[:5000] }}</pre>
+  <div class="card">
+    <details>
+      <summary class="cursor-pointer text-sm font-semibold text-slate-700">
+        Extracted text preview
+      </summary>
+      <pre class="mt-2 max-h-80 overflow-auto rounded bg-slate-50 p-3 text-xs">{{ file.text_content[:5000] }}</pre>
     </details>
+  </div>
   {% endif %}
 </div>
 {% endblock %}

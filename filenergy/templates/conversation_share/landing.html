@@ -1,53 +1,43 @@
 {% extends "base.html" %}
 
-{% block header %}{{ conversation.title or "Shared conversation" }}{% endblock %}
-
-{% block css %}
-<style>
-  .shared-thread { max-width: 760px; margin: 0 auto; }
-  .shared-thread .message { padding: 12px 14px; border-radius: 8px; margin-bottom: 10px; }
-  .shared-thread .message.user { background: #eef3f8; }
-  .shared-thread .message.assistant { background: #fafafa; border: 1px solid #eee; }
-  .shared-thread .body { white-space: pre-wrap; }
-  .shared-thread .speaker { font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #555; }
-  .shared-thread .sources { font-size: 12px; margin-top: 8px; color: #888; }
-  .shared-meta { color: #888; font-size: 13px; margin-bottom: 16px; }
-  .read-only-banner {
-    background: #fff8dc; border: 1px solid #e0d090; padding: 8px 12px;
-    border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #555;
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="shared-thread">
-  <div class="read-only-banner">
+<div class="mx-auto max-w-3xl">
+  <h1 class="text-2xl font-semibold">
+    {{ conversation.title or "Shared conversation" }}
+  </h1>
+
+  <div class="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
     Read-only shared conversation. Viewed {{ link.view_count or 0 }} time{{ '' if link.view_count == 1 else 's' }}.
     {% if link.expires_at %}
       Link expires {{ link.expires_at.strftime('%Y-%m-%d %H:%M UTC') }}.
     {% endif %}
   </div>
 
-  <div class="shared-meta">
+  <div class="mt-3 text-xs text-slate-500">
     {% if conversation.created_at %}
       Created {{ conversation.created_at.strftime('%Y-%m-%d %H:%M') }}.
     {% endif %}
     {{ messages|length }} message{{ '' if messages|length == 1 else 's' }}.
   </div>
 
-  {% for m in messages %}
-    <div class="message {{ m.role }}">
-      <div class="speaker">{% if m.role == 'user' %}You{% else %}Assistant{% endif %}</div>
-      <div class="body">{{ m.content }}</div>
-      {% if m.sources_json %}
-        <div class="sources" data-sources='{{ m.sources_json }}'>Sources:</div>
-      {% endif %}
-    </div>
-  {% endfor %}
+  <div class="mt-4 space-y-3">
+    {% for m in messages %}
+      <div class="rounded-lg p-3 {% if m.role == 'user' %}bg-brand-50{% else %}border border-slate-200 bg-white{% endif %}">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          {% if m.role == 'user' %}You{% else %}Assistant{% endif %}
+        </div>
+        <div class="mt-1 whitespace-pre-wrap text-sm">{{ m.content }}</div>
+        {% if m.sources_json %}
+          <div class="mt-2 text-xs text-slate-500"
+               data-sources='{{ m.sources_json }}'>Sources:</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
 </div>
 
 <script>
-$('.shared-thread .sources[data-sources]').each(function() {
+$('[data-sources]').each(function() {
   var $el = $(this);
   try {
     var sources = JSON.parse($el.attr('data-sources'));

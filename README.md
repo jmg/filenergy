@@ -60,6 +60,13 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 - **2FA (TOTP)** — `pyotp` + QR code. 8 single-use recovery codes
   generated on enable. Login flow defers `login_user` until the OTP
   succeeds, so a stolen password alone is not enough.
+- **WebAuthn / passkeys** — register a hardware key (YubiKey, Touch ID,
+  Windows Hello) and use it as the second factor instead of a TOTP code.
+  Multiple keys per user; per-key labels and last-used timestamps in the
+  security settings.
+- **Workspace-wide 2FA enforcement** — owners can flip "Require 2FA"; any
+  member without TOTP or a passkey is bounced to /settings/security on
+  the next request until they enroll.
 - **Google SSO** — `Authlib` OpenID Connect. Auto-creates the user (with
   default workspace) on first login; links to existing accounts by email.
   Hidden when `GOOGLE_OAUTH_CLIENT_ID` is unset.
@@ -73,6 +80,15 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 - **Conversation export** — `GET /ask/c/<id>/export.md` returns a
   Markdown transcript with sources.
 - **Audit log CSV export** — `GET /audit/export.csv` (admin only).
+- **Workspace export (GDPR-grade)** — `GET /w/export` returns a ZIP with
+  every file's bytes, conversation transcripts as Markdown, members CSV,
+  events CSV, and metadata JSON. Owner / admin only.
+- **Personal data export** — `GET /settings/account/export` returns a
+  ZIP with the user's own data + every workspace they own (each as a
+  nested ZIP). Self-serve GDPR portability.
+- **Weekly email digests** — Monday recap of last week's uploads, asks,
+  and new members per workspace. Per-user opt-out at `/settings/workspace`.
+  Wired as `flask send-digests` for cron / k8s job runners.
 
 ### Ops
 

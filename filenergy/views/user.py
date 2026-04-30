@@ -4,7 +4,9 @@ from flask import (
 from flask_login import login_user
 
 from filenergy.models import User
-from filenergy.services import events, oauth, sessions as session_service, totp
+from filenergy.services import (
+    events, oauth, sessions as session_service, totp, webauthn,
+)
 from filenergy.services.user import UserService
 
 user_bp = Blueprint("user", __name__)
@@ -53,8 +55,8 @@ def login_post():
         flash("Email or password incorrect.", "error")
         return redirect(url_for("user.login"))
 
-    if user.totp_enabled:
-        # Defer flask-login until the OTP succeeds.
+    if user.totp_enabled or webauthn.has_credential(user):
+        # Defer flask-login until the second factor succeeds.
         session[PENDING_2FA_KEY] = user.id
         session[PENDING_2FA_NEXT] = next_
         return redirect(url_for("user.two_factor"))
@@ -84,10 +86,17 @@ def two_factor_post():
         return redirect(url_for("user.login"))
 
     code = (request.form.get("code") or "").strip()
-    ok = totp.verify_otp(user, code) or totp.consume_recovery_code(user, code)
+    webauthn_id = (request.form.get("webauthn_credential_id") or "").strip()
+    ok = (
+        totp.verify_otp(user, code)
+        or totp.consume_recovery_code(user, code)
+        or (webauthn_id and webauthn.verify_assertion_stub(user, webauthn_id))
+    )
     if not ok:
         flash("Invalid code", "error")
         return redirect(url_for("user.two_factor"))
+    if webauthn_id:
+        events.log_event(events.WEBAUTHN_VERIFIED, user=user)
 
     next_ = session.pop(PENDING_2FA_NEXT, None) or url_for("index.index")
     session.pop(PENDING_2FA_KEY, None)

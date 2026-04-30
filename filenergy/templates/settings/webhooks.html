@@ -1,63 +1,91 @@
 {% extends "settings/_layout.html" %}
 
-{% block header %}Webhooks{% endblock %}
-
 {% block settings %}
-<div class="card">
-  <h3>Outbound webhooks</h3>
-  <p>We POST a JSON payload to your endpoint when an interesting event happens.
-     Verify the <code>X-Filenergy-Signature</code> header (HMAC-SHA256 of the
-     body using your signing secret).</p>
+<section class="card">
+  <h3 class="card-title">Outbound webhooks</h3>
+  <p class="text-sm text-slate-600">
+    We POST a JSON payload to your endpoint when an interesting event
+    happens. Verify the <code class="rounded bg-slate-100 px-1 py-0.5 text-xs">X-Filenergy-Signature</code>
+    header (HMAC-SHA256 of the body using your signing secret).
+  </p>
 
-  <form method="POST" action="{{ url_for('settings.create_webhook') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p><input type="url" name="url" placeholder="https://your-app.com/webhooks/filenergy" required></p>
-    <p>
-      <label><input type="checkbox" name="events" value="file.uploaded" checked> file.uploaded</label>
-      <label><input type="checkbox" name="events" value="file.indexed" checked> file.indexed</label>
-      <label><input type="checkbox" name="events" value="file.index_failed"> file.index_failed</label>
-      <label><input type="checkbox" name="events" value="file.deleted"> file.deleted</label>
-      <label><input type="checkbox" name="events" value="file.shared"> file.shared</label>
-      <label><input type="checkbox" name="events" value="ask.answered"> ask.answered</label>
-      <label><input type="checkbox" name="events" value="workspace.member_joined"> workspace.member_joined</label>
-      <label><input type="checkbox" name="events" value="billing.subscription_updated"> billing.subscription_updated</label>
-    </p>
+  <form method="POST" action="{{ url_for('settings.create_webhook') }}"
+        class="mt-4 space-y-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <label class="label" for="webhook_url">Endpoint URL</label>
+      <input class="input" type="url" id="webhook_url" name="url"
+             placeholder="https://your-app.com/webhooks/filenergy" required>
+    </div>
+    <div>
+      <div class="label">Events</div>
+      <div class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+        {% set checked = ['file.uploaded', 'file.indexed'] %}
+        {% for evt in ['file.uploaded','file.indexed','file.index_failed',
+                        'file.deleted','file.shared','ask.answered',
+                        'workspace.member_joined','billing.subscription_updated'] %}
+          <label class="flex items-center gap-2">
+            <input type="checkbox" name="events" value="{{ evt }}"
+                   {% if evt in checked %}checked{% endif %}
+                   class="rounded border-slate-300">
+            <code class="text-xs">{{ evt }}</code>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
     <button class="btn btn-primary" type="submit">Create webhook</button>
   </form>
-</div>
+</section>
 
-<div class="card">
-  <h3>Active subscriptions</h3>
-  <table class="simple">
-    <tr><th>URL</th><th>Events</th><th>Status</th><th>Last attempt</th><th></th></tr>
-    {% for s in subscriptions %}
-    <tr>
-      <td><code>{{ s.url }}</code></td>
-      <td><small>{{ s.event_types|join(', ') }}</small></td>
-      <td>
-        {% if s.enabled %}
-          <span class="pill" style="background:#d4edda;color:#155724;">on</span>
-        {% else %}
-          <span class="pill" style="background:#eee;">off</span>
-        {% endif %}
-        {% if s.last_status %}
-          · last HTTP {{ s.last_status }}
-        {% endif %}
-        {% if s.failure_count %}
-          · {{ s.failure_count }} failures
-        {% endif %}
-      </td>
-      <td>{{ s.last_attempt_at.strftime('%Y-%m-%d %H:%M') if s.last_attempt_at else '—' }}</td>
-      <td>
-        <form method="POST" action="{{ url_for('settings.toggle_webhook', sub_id=s.id) }}" style="display:inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default" type="submit">Toggle</button>
-        </form>
-        <form method="POST" action="{{ url_for('settings.delete_webhook', sub_id=s.id) }}" style="display:inline"
-              onsubmit="return confirm('Delete?');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default danger" type="submit">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
+<section class="card">
+  <h3 class="card-title">Active subscriptions</h3>
+  <div class="overflow-x-auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Events</th>
+          <th>Status</th>
+          <th>Last attempt</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in subscriptions %}
+        <tr>
+          <td><code class="break-all rounded bg-slate-100 px-1 py-0.5 text-xs">{{ s.url }}</code></td>
+          <td class="text-xs text-slate-600">{{ s.event_types|join(', ') }}</td>
+          <td class="text-xs">
+            {% if s.enabled %}
+              <span class="pill pill-success">on</span>
+            {% else %}
+              <span class="pill">off</span>
+            {% endif %}
+            {% if s.last_status %} · HTTP {{ s.last_status }}{% endif %}
+            {% if s.failure_count %} · {{ s.failure_count }} failures{% endif %}
+          </td>
+          <td class="text-xs text-slate-500">
+            {{ s.last_attempt_at.strftime('%Y-%m-%d %H:%M') if s.last_attempt_at else '—' }}
+          </td>
+          <td class="space-x-1 text-right">
+            <form method="POST"
+                  action="{{ url_for('settings.toggle_webhook', sub_id=s.id) }}"
+                  class="inline-block">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-ghost" type="submit">Toggle</button>
+            </form>
+            <form method="POST"
+                  action="{{ url_for('settings.delete_webhook', sub_id=s.id) }}"
+                  class="inline-block"
+                  onsubmit="return confirm('Delete?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-ghost text-rose-600" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

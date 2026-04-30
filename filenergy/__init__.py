@@ -33,3 +33,11 @@ if not os.environ.get("FILENERGY_SKIP_CREATE_ALL"):
     with app.app_context():
         db.create_all()
 
+
+# CLI: weekly digest send-out. Wire as `flask send-digests` (cron / k8s job).
+@app.cli.command("send-digests")
+def _send_digests_cli():
+    from filenergy.services import digest
+    n = digest.send_pending()
+    print(f"sent {n} digest(s)")
+

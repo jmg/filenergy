@@ -1,83 +1,185 @@
 {% extends "settings/_layout.html" %}
 
-{% block header %}Workspace{% endblock %}
-
 {% block settings %}
-<div class="card">
-  <h3>{{ g.workspace.name }} <span class="pill {{ g.workspace.plan }}">{{ g.workspace.plan }}</span></h3>
-  <p style="color:#666">slug: <code>{{ g.workspace.slug }}</code> · your role: <strong>{{ my_role }}</strong></p>
-</div>
+<section class="card">
+  <h3 class="card-title flex items-center gap-2">
+    {{ g.workspace.name }}
+    <span class="pill pill-{{ 'brand' if g.workspace.plan == 'pro' else 'warn' if g.workspace.plan == 'team' else 'success' }}">
+      {{ g.workspace.plan }}
+    </span>
+  </h3>
+  <p class="text-sm text-slate-500">
+    slug <code class="rounded bg-slate-100 px-1 py-0.5 text-xs">{{ g.workspace.slug }}</code>
+    · your role <strong>{{ my_role }}</strong>
+  </p>
+</section>
 
-<div class="card">
-  <h3>Members ({{ members|length }})</h3>
-  <table class="simple">
-    <tr><th>Email</th><th>Role</th><th></th></tr>
-    {% for m in members %}
-    <tr>
-      <td>{{ m.user.email }}</td>
-      <td>{{ m.role }}</td>
-      <td>
-        {% if my_role in ('owner','admin') and m.user_id != g.workspace.owner_id and m.user_id != g.user.id %}
-          <form method="POST" action="{{ url_for('workspace.remove_member', user_id=m.user_id) }}" style="display:inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default danger" type="submit">Remove</button>
-          </form>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
+{% if my_role == 'owner' %}
+<section class="card">
+  <h3 class="card-title">Workspace policy</h3>
+  <form method="POST" action="{{ url_for('workspace.update_policy') }}"
+        class="space-y-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="flex items-start gap-2 text-sm">
+      <input type="checkbox" name="require_2fa" value="1"
+             {% if g.workspace.require_2fa %}checked{% endif %}
+             class="mt-0.5 rounded border-slate-300">
+      <span>
+        <span class="font-medium">Require 2FA for all members.</span>
+        <span class="block text-xs text-slate-500">
+          Members without TOTP or a passkey will be forced to enable one
+          before they can use the workspace.
+        </span>
+      </span>
+    </label>
+    <button class="btn btn-primary" type="submit">Save policy</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3 class="card-title">Members ({{ members|length }})</h3>
+  <div class="overflow-x-auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Role</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td>{{ m.user.email }}</td>
+          <td><span class="pill pill-brand">{{ m.role }}</span></td>
+          <td class="text-right">
+            {% if my_role in ('owner','admin') and m.user_id != g.workspace.owner_id and m.user_id != g.user.id %}
+              <form method="POST"
+                    action="{{ url_for('workspace.remove_member', user_id=m.user_id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-ghost" type="submit">Remove</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 
 {% if my_role in ('owner','admin') %}
-<div class="card">
-  <h3>Invite someone</h3>
-  <form method="POST" action="{{ url_for('workspace.invite') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>
-      <input type="email" name="email" placeholder="teammate@example.com" required>
-      <select name="role">
+<section class="card">
+  <h3 class="card-title">Invite someone</h3>
+  <form method="POST" action="{{ url_for('workspace.invite') }}"
+        class="flex flex-wrap items-end gap-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="min-w-[14rem] flex-1">
+      <label class="label" for="invite_email">Email</label>
+      <input class="input" type="email" id="invite_email" name="email"
+             placeholder="teammate@example.com" required>
+    </div>
+    <div>
+      <label class="label" for="invite_role">Role</label>
+      <select class="input" id="invite_role" name="role">
         <option value="member">Member</option>
         <option value="admin">Admin</option>
       </select>
-      <button class="btn btn-primary" type="submit">Send invite</button>
-    </p>
+    </div>
+    <button class="btn btn-primary" type="submit">Send invite</button>
   </form>
+
   {% if invitations %}
-  <h4>Pending</h4>
-  <table class="simple">
-    <tr><th>Email</th><th>Role</th><th>Link</th></tr>
-    {% for inv in invitations %}
-    <tr>
-      <td>{{ inv.email }}</td>
-      <td>{{ inv.role }}</td>
-      <td><code>{{ url_for('workspace.accept', token=inv.token, _external=True) }}</code></td>
-    </tr>
-    {% endfor %}
-  </table>
+  <h4 class="mt-4 text-sm font-semibold text-slate-700">Pending invites</h4>
+  <div class="overflow-x-auto">
+    <table class="table">
+      <thead>
+        <tr><th>Email</th><th>Role</th><th>Link</th></tr>
+      </thead>
+      <tbody>
+        {% for inv in invitations %}
+        <tr>
+          <td>{{ inv.email }}</td>
+          <td>{{ inv.role }}</td>
+          <td>
+            <code class="break-all rounded bg-slate-100 px-1 py-0.5 text-xs">
+              {{ url_for('workspace.accept', token=inv.token, _external=True) }}
+            </code>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% endif %}
-</div>
+</section>
 {% endif %}
 
-<div class="card">
-  <h3>Your workspaces</h3>
-  <table class="simple">
-    {% for w in my_workspaces %}
-    <tr>
-      <td>{{ w.name }} {% if w.id == g.workspace.id %}<span class="pill">current</span>{% endif %}</td>
-      <td>
-        {% if w.id != g.workspace.id %}
-          <form method="POST" action="{{ url_for('workspace.switch', workspace_id=w.id) }}" style="display:inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ url_for('settings.workspace') }}">
-            <button class="btn btn-default" type="submit">Switch</button>
-          </form>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-  <h4>Create another</h4>
-  <form method="POST" action="{{ url_for('workspace.create') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="text" name="name" placeholder="Workspace name" required>
+<section class="card">
+  <h3 class="card-title">Your workspaces</h3>
+  <div class="overflow-x-auto">
+    <table class="table">
+      <tbody>
+        {% for w in my_workspaces %}
+        <tr>
+          <td>
+            {{ w.name }}
+            {% if w.id == g.workspace.id %}<span class="pill pill-brand">current</span>{% endif %}
+          </td>
+          <td class="text-right">
+            {% if w.id != g.workspace.id %}
+              <form method="POST"
+                    action="{{ url_for('workspace.switch', workspace_id=w.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="{{ url_for('settings.workspace') }}">
+                <button class="btn btn-ghost" type="submit">Switch</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <h4 class="mt-4 text-sm font-semibold text-slate-700">Create another</h4>
+  <form method="POST" action="{{ url_for('workspace.create') }}"
+        class="mt-2 flex gap-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input class="input flex-1" type="text" name="name"
+           placeholder="Workspace name" required>
     <button class="btn btn-primary" type="submit">Create</button>
   </form>
-</div>
+</section>
+
+<section class="card">
+  <h3 class="card-title">Export workspace data</h3>
+  <p class="text-sm text-slate-600">
+    Download a ZIP bundle with files, conversations, audit log and member
+    list. Useful for compliance, migration or backup.
+  </p>
+  <a class="btn btn-ghost mt-3" href="{{ url_for('workspace.export') }}">
+    Download workspace.zip
+  </a>
+</section>
+
+<section class="card">
+  <h3 class="card-title">Notifications</h3>
+  <form method="POST" action="{{ url_for('settings.update_notifications') }}"
+        class="space-y-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="flex items-start gap-2 text-sm">
+      <input type="checkbox" name="weekly_digest" value="1"
+             {% if g.user.weekly_digest %}checked{% endif %}
+             class="mt-0.5 rounded border-slate-300">
+      <span>
+        <span class="font-medium">Weekly activity digest.</span>
+        <span class="block text-xs text-slate-500">
+          A short Monday recap of what your team asked, indexed and shared.
+        </span>
+      </span>
+    </label>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+</section>
 {% endblock %}

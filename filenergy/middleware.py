@@ -1,7 +1,7 @@
 import logging
 import time
 
-from flask import g, request
+from flask import flash, g, redirect, request, url_for
 from flask_login import current_user
 
 from filenergy import app, login_manager
@@ -14,6 +14,43 @@ from filenergy.services import (
 from filenergy.services.user import UserService
 
 log = logging.getLogger("filenergy.request")
+
+
+# Endpoints that must remain reachable even when the workspace forces 2FA
+# but the user hasn't enrolled yet. Without these the user couldn't enable
+# TOTP or sign out.
+_2FA_ALLOWED_ENDPOINTS = frozenset({
+    "settings.security",
+    "settings.totp_start",
+    "settings.totp_enable",
+    "settings.totp_disable",
+    "settings.totp_regenerate",
+    "settings.webauthn_register",
+    "settings.webauthn_delete",
+    "settings.revoke_session",
+    "settings.revoke_other_sessions",
+    "user.logout",
+    "user.two_factor",
+    "user.two_factor_post",
+    "health.health",
+    "health.metrics",
+    "workspace.update_policy",
+    "static",
+})
+
+
+def _user_has_second_factor(user) -> bool:
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    if user.totp_enabled:
+        return True
+    try:
+        from filenergy.models import WebAuthnCredential
+        return WebAuthnCredential.query.filter_by(
+            user_id=user.id
+        ).first() is not None
+    except Exception:
+        return False
 
 
 @app.before_request
@@ -37,6 +74,23 @@ def before_request():
         session_service.touch(sess)
     g._request_started_at = time.monotonic()
 
+    # Enforce workspace-wide 2FA: members of a `require_2fa=True` workspace
+    # who haven't enrolled a second factor are bounced to the security page
+    # until they do.
+    ws = g.workspace
+    if (
+        ws is not None
+        and getattr(ws, "require_2fa", False)
+        and getattr(current_user, "is_authenticated", False)
+        and request.endpoint not in _2FA_ALLOWED_ENDPOINTS
+        and not _user_has_second_factor(current_user)
+    ):
+        flash(
+            "This workspace requires 2FA. Enable it to continue.",
+            "error",
+        )
+        return redirect(url_for("settings.security"))
+
 
 # Content Security Policy. Stricter would block the inline scripts in
 # our Bootstrap-3 templates and the Swagger UI CDN at /api/v1/docs;
@@ -45,8 +99,8 @@ def before_request():
 _CSP = (
     "default-src 'self'; "
     "img-src 'self' data: https://avatars.githubusercontent.com; "
-    "style-src 'self' 'unsafe-inline' https://unpkg.com; "
-    "script-src 'self' 'unsafe-inline' https://unpkg.com; "
+    "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.tailwindcss.com; "
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.tailwindcss.com; "
     "connect-src 'self'; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "

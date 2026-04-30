@@ -1,19 +1,27 @@
 {% extends "base.html" %}
 
-{% block header %}Shared file{% endblock %}
-
 {% block content %}
-<div class="row well" style="max-width: 600px; margin: 30px auto; text-align: center;">
-  <h2>{{ file.name }}</h2>
-  <p style="color:#666;">
-    {{ "%.1f"|format((file.size_bytes or 0) / 1024) }} KB · uploaded {{ file.created_at.strftime('%Y-%m-%d') if file.created_at else '' }}
-  </p>
-  {% if link.expires_at %}
-    <p style="color:#888;font-size:13px;">Link expires {{ link.expires_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
-  {% endif %}
-  {% if link.max_downloads %}
-    <p style="color:#888;font-size:13px;">{{ link.download_count or 0 }} / {{ link.max_downloads }} downloads used</p>
-  {% endif %}
-  <a class="btn btn-primary btn-large" href="{{ url_for('share.download', token=link.token) }}">Download</a>
+<div class="mx-auto max-w-md text-center">
+  <div class="card">
+    <h2 class="text-xl font-semibold">{{ file.name }}</h2>
+    <p class="mt-1 text-sm text-slate-500">
+      {{ "%.1f"|format((file.size_bytes or 0) / 1024) }} KB ·
+      uploaded {{ file.created_at.strftime('%Y-%m-%d') if file.created_at else '' }}
+    </p>
+    {% if link.expires_at %}
+      <p class="mt-1 text-xs text-slate-400">
+        Link expires {{ link.expires_at.strftime('%Y-%m-%d %H:%M UTC') }}
+      </p>
+    {% endif %}
+    {% if link.max_downloads %}
+      <p class="text-xs text-slate-400">
+        {{ link.download_count or 0 }} / {{ link.max_downloads }} downloads used
+      </p>
+    {% endif %}
+    <a class="btn btn-primary btn-large mt-4 w-full"
+       href="{{ url_for('share.download', token=link.token) }}">
+      Download
+    </a>
+  </div>
 </div>
 {% endblock %}
