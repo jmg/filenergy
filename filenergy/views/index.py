@@ -1,7 +1,8 @@
-from filenergy import app
-from flask import render_template
+from flask import Blueprint, render_template
+
+index_bp = Blueprint("index", __name__)
 
 
-@app.route("/")
+@index_bp.route("/")
 def index():
     return render_template("index/index.html")

@@ -1,18 +1,38 @@
 import os
+import secrets
 
-env = os.environ.get("ENV", "LOCAL")
+from dotenv import load_dotenv
 
-secret_key = "\xa90\x91\xcd\xce\xf2\xbe\x1d\x87\xbb;\xa7\xf3\x91K\xde\x05*D\x9b6\xe4U\xbf"
-login_view = '/user/login/'
-UPLOAD_DIR = "files"
+load_dotenv()
 
-configs = {
-    "LOCAL": {
-        "SQLALCHEMY_DATABASE_URI": 'sqlite:////tmp/test.db',
-    },
-    "PROD": {
-        "SQLALCHEMY_DATABASE_URI": 'sqlite:////tmp/test.db',
-    }
+ENV = os.environ.get("FILENERGY_ENV", "LOCAL")
+
+SECRET_KEY = os.environ.get("FILENERGY_SECRET_KEY") or secrets.token_hex(32)
+
+LOGIN_VIEW = "user.login"
+
+UPLOAD_DIR = os.environ.get("FILENERGY_UPLOAD_DIR", "files")
+MAX_UPLOAD_BYTES = int(os.environ.get("FILENERGY_MAX_UPLOAD_BYTES", 50 * 1024 * 1024))
+
+DB_URI_DEFAULT = "sqlite:///" + os.path.abspath(
+    os.environ.get("FILENERGY_DB_PATH", "filenergy.db")
+)
+SQLALCHEMY_DATABASE_URI = os.environ.get("FILENERGY_DB_URI", DB_URI_DEFAULT)
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-7")
+
+VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY")
+VOYAGE_EMBED_MODEL = os.environ.get("VOYAGE_EMBED_MODEL", "voyage-3-lite")
+
+CHUNK_SIZE = int(os.environ.get("FILENERGY_CHUNK_SIZE", 1200))
+CHUNK_OVERLAP = int(os.environ.get("FILENERGY_CHUNK_OVERLAP", 150))
+RETRIEVAL_K = int(os.environ.get("FILENERGY_RETRIEVAL_K", 6))
+
+
+FLASK_CONFIG = {
+    "SECRET_KEY": SECRET_KEY,
+    "SQLALCHEMY_DATABASE_URI": SQLALCHEMY_DATABASE_URI,
+    "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+    "MAX_CONTENT_LENGTH": MAX_UPLOAD_BYTES,
 }
-
-config = configs[env]

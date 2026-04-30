@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block header %}Ask your library{% endblock %}
+
+{% block css %}
+<style>
+  .chat { max-width: 760px; }
+  .chat .message { padding: 12px 14px; border-radius: 8px; margin-bottom: 10px; white-space: pre-wrap; }
+  .chat .message.user { background: #eef3f8; }
+  .chat .message.assistant { background: #f7f7f5; border: 1px solid #e6e6e2; }
+  .chat .sources { font-size: 12px; margin-top: 6px; color: #555; }
+  .chat .sources a { margin-right: 8px; }
+  .chat textarea { width: 100%; min-height: 70px; }
+  .chat .pending { font-style: italic; color: #888; }
+  .chat .config-warning { background: #fff8dc; border: 1px solid #e0d090; padding: 10px; margin-bottom: 12px; border-radius: 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="chat well">
+
+  {% if not status.anthropic or not status.embeddings %}
+  <div class="config-warning">
+    Chat is not fully configured. You need both
+    <code>ANTHROPIC_API_KEY</code> (status: {% if status.anthropic %}OK{% else %}missing{% endif %})
+    and <code>VOYAGE_API_KEY</code> (status: {% if status.embeddings %}OK{% else %}missing{% endif %}).
+  </div>
+  {% endif %}
+
+  <div id="thread"></div>
+
+  <form id="ask-form" onsubmit="askQuestion(); return false;">
+    <textarea id="question" placeholder="Ask a question about the files you've uploaded..."></textarea>
+    <br>
+    <button type="submit" class="btn btn-primary">Ask</button>
+  </form>
+</div>
+
+<script>
+  function escapeHtml(s) {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function appendMessage(role, html) {
+    var el = $('<div class="message"></div>').addClass(role).html(html);
+    $('#thread').append(el);
+    el[0].scrollIntoView({ behavior: "smooth", block: "end" });
+    return el;
+  }
+
+  function askQuestion() {
+    var $q = $('#question');
+    var question = $q.val().trim();
+    if (!question) return;
+    $q.val('');
+
+    appendMessage('user', escapeHtml(question));
+    var pending = appendMessage('assistant', '<span class="pending">Thinking...</span>');
+
+    $.ajax({
+      url: '/ask/',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ question: question }),
+    }).done(function (data) {
+      var html = escapeHtml(data.answer);
+      if (data.sources && data.sources.length) {
+        var srcs = data.sources.map(function (s) {
+          return '<a href="/file/download/?h=' + encodeURIComponent(s.url) + '">'
+            + escapeHtml(s.name) + '</a>';
+        }).join('');
+        html += '<div class="sources">Sources: ' + srcs + '</div>';
+      }
+      pending.html(html);
+    }).fail(function (xhr) {
+      var msg = (xhr.responseJSON && xhr.responseJSON.error) || 'Request failed.';
+      pending.html('<span style="color:#a00">' + escapeHtml(msg) + '</span>');
+    });
+  }
+</script>
+
+{% endblock %}

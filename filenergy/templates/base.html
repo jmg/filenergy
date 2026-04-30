@@ -39,10 +39,11 @@
 
             <li><a href="/file/upload/">Upload</a></li>
             <li><a href="/file/list/">My Files</a></li>
+            <li><a href="/ask/">Ask</a></li>
 
           </ul>
           <ul class="nav pull-right" id="main-menu-right">
-            {% if not g.user.is_authenticated() %}
+            {% if not g.user.is_authenticated %}
             <li><a href="/user/login/">Login</a></li>
             <li><a href="/user/register/">Signup</i></a></li>
             {% else %}
