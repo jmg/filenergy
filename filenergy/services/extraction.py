@@ -99,29 +99,47 @@ def extract_text(path: str) -> str | None:
 
 
 def chunk_text(text: str, size: int, overlap: int) -> list[str]:
-    """Split text into overlapping chunks on paragraph/sentence boundaries when possible."""
+    """Split text into overlapping chunks. Returns just the chunk strings
+    (back-compat with callers that don't need offsets — the file indexer
+    uses `chunk_text_with_offsets` below)."""
+    return [c for c, _, _ in chunk_text_with_offsets(text, size, overlap)]
+
+
+def chunk_text_with_offsets(
+    text: str, size: int, overlap: int,
+) -> list[tuple[str, int, int]]:
+    """Like `chunk_text` but returns `(chunk, start_offset, end_offset)`.
+
+    Offsets are into the *stripped* `text` argument so callers can store
+    them alongside `File.text_content` (which the indexer also stores
+    stripped) and use them to render a "source paragraph" viewer.
+    """
     text = text.strip()
     if not text:
         return []
-
-    if len(text) <= size:
-        return [text]
-
-    chunks: list[str] = []
-    start = 0
     n = len(text)
+    if n <= size:
+        return [(text, 0, n)]
+
+    out: list[tuple[str, int, int]] = []
+    start = 0
     while start < n:
         end = min(start + size, n)
         if end < n:
-            # Prefer to break on a paragraph or sentence boundary near `end`.
             window = text[start:end]
             for sep in ("\n\n", "\n", ". ", " "):
                 idx = window.rfind(sep)
                 if idx > size // 2:
                     end = start + idx + len(sep)
                     break
-        chunks.append(text[start:end].strip())
+        snippet = text[start:end]
+        stripped = snippet.strip()
+        if stripped:
+            # Recover stripped offsets within the original window.
+            lead = len(snippet) - len(snippet.lstrip())
+            trail = len(snippet) - len(snippet.rstrip())
+            out.append((stripped, start + lead, end - trail))
         if end >= n:
             break
         start = max(end - overlap, start + 1)
-    return [c for c in chunks if c]
+    return out

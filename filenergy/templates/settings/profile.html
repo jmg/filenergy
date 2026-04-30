@@ -12,7 +12,7 @@
 <div class="card">
   <h3>Change password</h3>
   <form method="POST" action="{{ url_for('settings.update_profile') }}">
-    <p><input type="password" name="current_password" placeholder="Current password" required></p>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p><input type="password" name="current_password" placeholder="Current password" required></p>
     <p><input type="password" name="new_password" placeholder="New password" required></p>
     <p><input type="password" name="confirm_password" placeholder="Confirm new password" required></p>
     <button class="btn btn-primary" type="submit">Update password</button>

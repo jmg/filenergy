@@ -9,7 +9,7 @@
 
   <h4>1. Name your workspace</h4>
   <form method="POST" action="{{ url_for('onboarding.rename_workspace') }}" class="form-inline">
-    <input type="text" name="name" value="{{ workspace_name }}" class="input-xlarge" required>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="text" name="name" value="{{ workspace_name }}" class="input-xlarge" required>
     <button class="btn btn-default" type="submit">Save</button>
   </form>
 
@@ -24,10 +24,10 @@
     <a class="btn btn-primary" href="{{ url_for('ask.index') }}">Ask your library</a>
   {% else %}
     <form method="POST" action="{{ url_for('onboarding.seed') }}" style="display:inline">
-      <button class="btn btn-primary btn-large" type="submit">Add sample files</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary btn-large" type="submit">Add sample files</button>
     </form>
     <form method="POST" action="{{ url_for('onboarding.skip') }}" style="display:inline">
-      <button class="btn btn-large" type="submit">Skip — I'll upload my own</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-large" type="submit">Skip — I'll upload my own</button>
     </form>
   {% endif %}
 </div>

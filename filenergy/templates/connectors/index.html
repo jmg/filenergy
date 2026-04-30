@@ -46,11 +46,11 @@
         </td>
         <td>
           <form method="POST" action="{{ url_for('connectors.sync', account_id=a.id) }}" style="display:inline">
-            <button class="btn btn-default" type="submit">Sync now</button>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default" type="submit">Sync now</button>
           </form>
           <form method="POST" action="{{ url_for('connectors.disconnect', account_id=a.id) }}" style="display:inline"
                 onsubmit="return confirm('Disconnect?');">
-            <button class="btn btn-default" type="submit">Disconnect</button>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default" type="submit">Disconnect</button>
           </form>
         </td>
       </tr>

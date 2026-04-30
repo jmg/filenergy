@@ -21,7 +21,7 @@
 
   <h4>New collection</h4>
   <form method="POST" action="{{ url_for('collections.create') }}">
-    <p><input class="input-xlarge" type="text" name="name" placeholder="Engineering specs, Q4 contracts..." required></p>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p><input class="input-xlarge" type="text" name="name" placeholder="Engineering specs, Q4 contracts..." required></p>
     <p><textarea class="input-xlarge" name="description" placeholder="Optional description"></textarea></p>
     <button class="btn btn-primary" type="submit">Create</button>
   </form>

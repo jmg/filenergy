@@ -33,12 +33,12 @@
   <details>
     <summary>Manage</summary>
     <form method="POST" action="{{ url_for('collections.rename', slug=collection.slug) }}" style="margin-top:8px;">
-      <input type="text" name="name" value="{{ collection.name }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="text" name="name" value="{{ collection.name }}">
       <button class="btn" type="submit">Rename</button>
     </form>
     <form method="POST" action="{{ url_for('collections.delete', slug=collection.slug) }}"
           onsubmit="return confirm('Delete this collection? Files inside will become uncategorized.');">
-      <button class="btn btn-danger" type="submit">Delete collection</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-danger" type="submit">Delete collection</button>
     </form>
   </details>
 </div>

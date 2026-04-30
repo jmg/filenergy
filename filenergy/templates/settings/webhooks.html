@@ -10,7 +10,7 @@
      body using your signing secret).</p>
 
   <form method="POST" action="{{ url_for('settings.create_webhook') }}">
-    <p><input type="url" name="url" placeholder="https://your-app.com/webhooks/filenergy" required></p>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p><input type="url" name="url" placeholder="https://your-app.com/webhooks/filenergy" required></p>
     <p>
       <label><input type="checkbox" name="events" value="file.uploaded" checked> file.uploaded</label>
       <label><input type="checkbox" name="events" value="file.indexed" checked> file.indexed</label>
@@ -49,11 +49,11 @@
       <td>{{ s.last_attempt_at.strftime('%Y-%m-%d %H:%M') if s.last_attempt_at else '—' }}</td>
       <td>
         <form method="POST" action="{{ url_for('settings.toggle_webhook', sub_id=s.id) }}" style="display:inline">
-          <button class="btn btn-default" type="submit">Toggle</button>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default" type="submit">Toggle</button>
         </form>
         <form method="POST" action="{{ url_for('settings.delete_webhook', sub_id=s.id) }}" style="display:inline"
               onsubmit="return confirm('Delete?');">
-          <button class="btn btn-default danger" type="submit">Delete</button>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default danger" type="submit">Delete</button>
         </form>
       </td>
     </tr>

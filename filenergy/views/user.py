@@ -4,7 +4,7 @@ from flask import (
 from flask_login import login_user
 
 from filenergy.models import User
-from filenergy.services import events, oauth, totp
+from filenergy.services import events, oauth, sessions as session_service, totp
 from filenergy.services.user import UserService
 
 user_bp = Blueprint("user", __name__)
@@ -25,12 +25,31 @@ def login():
 
 @user_bp.route("/login/", methods=["POST"])
 def login_post():
-    email = request.form["email"].strip()
+    from filenergy import settings as cfg
+
+    email = request.form["email"].strip().lower()
     password = request.form["password"].strip()
     next_ = request.form.get("next") or url_for("index.index")
 
+    # Bucket failed-login attempts per email so a single attacker can't
+    # iterate through password lists. The bucket is the email being
+    # attempted, not the actual user — keeps anonymous attackers out.
+    recent_failures = events.count_recent_with_metadata(
+        events.USER_LOGIN_FAILED,
+        cfg.LOGIN_RATE_WINDOW_SECONDS,
+        email=email,
+    )
+    if recent_failures >= cfg.LOGIN_RATE_LIMIT:
+        events.log_event(events.USER_LOGIN_RATE_LIMITED, email=email)
+        flash(
+            "Too many failed attempts. Try again in a few minutes.",
+            "error",
+        )
+        return redirect(url_for("user.login"))
+
     user = User.query.filter_by(email=email).first()
     if user is None or not user.check_password(password):
+        events.log_event(events.USER_LOGIN_FAILED, email=email)
         flash("Email or password incorrect.", "error")
         return redirect(url_for("user.login"))
 
@@ -42,6 +61,7 @@ def login_post():
 
     # No 2FA: log in directly.
     UserService().login(email, password)
+    session_service.issue(user)
     events.log_event(events.USER_LOGGED_IN, user=user)
     return redirect(next_)
 
@@ -74,6 +94,7 @@ def two_factor_post():
     login_user(user)
     from filenergy.services import workspaces
     workspaces.ensure_default_for(user)
+    session_service.issue(user)
     events.log_event(events.USER_LOGGED_IN, user=user)
     return redirect(next_)
 
@@ -106,6 +127,7 @@ def register_post():
 @user_bp.route("/logout/")
 def logout():
     user = g.user if g.user.is_authenticated else None
+    session_service.revoke_on_logout()
     UserService().logout()
     if user is not None:
         events.log_event(events.USER_LOGGED_OUT, user=user)

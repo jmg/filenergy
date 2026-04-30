@@ -77,6 +77,35 @@ class User(BaseModel):
         return self.email or self.username or f"User<{self.id}>"
 
 
+class UserSession(BaseModel):
+    """One row per active browser login.
+
+    The session-token cookie is opaque to us — we hash it server-side so a
+    leaked DB doesn't hand attackers live cookies. `last_seen_at` updates
+    on every authenticated request via the middleware. Revoking a session
+    sets `revoked_at`; the middleware refuses cookies that point to a
+    revoked row.
+    """
+
+    __tablename__ = "user_session"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
+    session_token_hash = db.Column(
+        db.String(128), unique=True, index=True, nullable=False,
+    )
+    user_agent = db.Column(db.String(512), nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    last_seen_at = db.Column(db.DateTime, default=utcnow)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("sessions", lazy="dynamic"))
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None
+
+
 # ---------------------------------------------------------------------------
 # Tenancy
 # ---------------------------------------------------------------------------
@@ -253,7 +282,12 @@ class Collection(BaseModel):
 
 
 class Chunk(BaseModel):
-    """A retrieval-sized slice of a file's extracted text plus its embedding."""
+    """A retrieval-sized slice of a file's extracted text plus its embedding.
+
+    `char_offset_start` / `char_offset_end` index into `File.text_content`
+    so the source paragraph viewer can render N chars of context around
+    the cited span.
+    """
 
     __tablename__ = "chunk"
 
@@ -262,6 +296,8 @@ class Chunk(BaseModel):
     position = db.Column(db.Integer)
     content = db.Column(db.Text)
     embedding = db.Column(EncryptedText)
+    char_offset_start = db.Column(db.Integer, nullable=True)
+    char_offset_end = db.Column(db.Integer, nullable=True)
 
     citations = db.relationship(
         "MessageCitation", backref="chunk", lazy="dynamic",
@@ -357,6 +393,12 @@ class ApiKey(BaseModel):
     """Bearer tokens scoped to a workspace.
 
     Only the SHA-256 hash is stored; the plaintext is shown once at creation.
+
+    `scopes_json` is a JSON-encoded list of permissions like
+    `["files:read", "ask:write"]`. Empty / None means full access (the
+    legacy default before this column existed). Format: `<resource>:<action>`
+    where action is `read` or `write`. `read` covers both reading and
+    listing; `write` covers create / update / delete.
     """
 
     __tablename__ = "api_key"
@@ -367,6 +409,7 @@ class ApiKey(BaseModel):
     name = db.Column(db.String(120))
     prefix = db.Column(db.String(16))  # display-friendly first chars
     token_hash = db.Column(db.String(128), unique=True, index=True)
+    scopes_json = db.Column(db.Text, nullable=True)
     last_used_at = db.Column(db.DateTime, nullable=True)
     revoked_at = db.Column(db.DateTime, nullable=True)
 
@@ -376,6 +419,64 @@ class ApiKey(BaseModel):
     @property
     def is_active(self) -> bool:
         return self.revoked_at is None
+
+    @property
+    def scopes(self) -> list[str]:
+        import json
+        if not self.scopes_json:
+            return []
+        try:
+            return list(json.loads(self.scopes_json))
+        except Exception:
+            return []
+
+    def has_scope(self, scope: str) -> bool:
+        """Return True if this key may perform `scope` (e.g. "files:read").
+
+        An empty `scopes` list means "full access" — back-compat with keys
+        minted before this feature shipped.
+        """
+        scopes = self.scopes
+        if not scopes:
+            return True
+        if scope in scopes:
+            return True
+        # `files:write` implies `files:read` for the same resource.
+        resource, _, action = scope.partition(":")
+        if action == "read" and f"{resource}:write" in scopes:
+            return True
+        return False
+
+
+class ConversationShareLink(BaseModel):
+    """Public read-only share for an entire Conversation thread.
+
+    Different from `ShareLink` (which serves files): this exposes the
+    transcript as a static landing page at `/sc/<token>`.
+    """
+
+    __tablename__ = "conversation_share_link"
+
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(
+        db.Integer, db.ForeignKey("conversation.id"), index=True,
+    )
+    token = db.Column(db.String(64), unique=True, index=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    view_count = db.Column(db.Integer, default=0)
+
+    conversation = db.relationship("Conversation")
+    created_by = db.relationship("User")
+
+    def is_active(self, *, now=None) -> bool:
+        if self.revoked_at is not None:
+            return False
+        now = now or utcnow()
+        if self.expires_at is not None and now >= self.expires_at:
+            return False
+        return True
 
 
 class ShareLink(BaseModel):

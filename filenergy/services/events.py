@@ -20,6 +20,9 @@ log = logging.getLogger(__name__)
 USER_REGISTERED = "user.registered"
 USER_LOGGED_IN = "user.logged_in"
 USER_LOGGED_OUT = "user.logged_out"
+USER_LOGIN_FAILED = "user.login_failed"
+USER_LOGIN_RATE_LIMITED = "user.login_rate_limited"
+USER_SESSION_REVOKED = "user.session_revoked"
 
 WORKSPACE_CREATED = "workspace.created"
 WORKSPACE_SWITCHED = "workspace.switched"
@@ -114,4 +117,26 @@ def count_recent(user, type_: str, since_seconds: int,
     )
     if workspace_id is not None:
         q = q.filter_by(workspace_id=workspace_id)
+    return q.count()
+
+
+def count_recent_with_metadata(type_: str, since_seconds: int,
+                                **needles: str) -> int:
+    """Count events of `type_` in the last `since_seconds` whose
+    `metadata_json` contains every key=value pair in `needles`.
+
+    Used by anonymous-actor rate limits (failed logins keyed on email,
+    IP allow-list checks, etc.) where there's no user_id to scope by.
+    SQLite + Postgres both honour LIKE on the JSON text.
+    """
+    from datetime import timedelta
+
+    from filenergy.models import utcnow
+
+    cutoff = utcnow() - timedelta(seconds=since_seconds)
+    q = Event.query.filter_by(type=type_).filter(Event.created_at >= cutoff)
+    for key, value in needles.items():
+        # Match the JSON-encoded form so we don't false-match substrings.
+        needle = json.dumps({key: value})[1:-1]  # drop the wrapping {}
+        q = q.filter(Event.metadata_json.like(f"%{needle}%"))
     return q.count()
