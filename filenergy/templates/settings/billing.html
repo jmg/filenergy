@@ -1,86 +1,115 @@
 {% extends "settings/_layout.html" %}
 
-{% block header %}Billing & usage{% endblock %}
-
 {% block settings %}
-<div class="card">
-  <h3>Current plan: <span class="pill {{ current_plan }}">{{ usage.label }}</span></h3>
+{% macro meter(label, used, limit, format_used='', format_limit='') %}
+  {% set pct = (used * 100 // (limit or 1)) %}
+  <div>
+    <div class="flex items-baseline justify-between text-sm">
+      <span>{{ label }}</span>
+      <span class="text-slate-500">
+        <strong class="text-slate-900">{{ format_used or used }}</strong>
+        / {{ format_limit or limit }}
+      </span>
+    </div>
+    <div class="mt-1 h-2 overflow-hidden rounded bg-slate-200">
+      <div class="h-full bg-brand-500" style="width: {{ [pct,100] | min }}%"></div>
+    </div>
+  </div>
+{% endmacro %}
+
+<section class="card">
+  <h3 class="card-title flex items-center gap-2">
+    Current plan
+    <span class="pill pill-{{ 'brand' if current_plan == 'pro' else 'warn' if current_plan == 'team' else 'success' }}">
+      {{ usage.label }}
+    </span>
+  </h3>
   {% if not stripe_configured %}
-    <p style="color:#a04">Stripe is not configured on this instance — checkout is disabled.</p>
+    <p class="text-sm text-rose-600">
+      Stripe is not configured on this instance — checkout is disabled.
+    </p>
   {% endif %}
-</div>
+</section>
 
-<div class="card">
-  <h3>This month</h3>
-
-  {% set ask_pct = (usage.asks_this_month.used * 100 // (usage.asks_this_month.limit or 1)) %}
-  <div class="row">
-    <div class="grow">
-      <div>Questions asked: <strong>{{ usage.asks_this_month.used }}</strong> / {{ usage.asks_this_month.limit }}</div>
-      <div class="meter"><span style="width: {{ [ask_pct,100] | min }}%"></span></div>
-    </div>
+<section class="card">
+  <h3 class="card-title">This month</h3>
+  <div class="space-y-4">
+    {{ meter('Questions asked',
+             usage.asks_this_month.used,
+             usage.asks_this_month.limit) }}
+    {{ meter('Storage',
+             usage.storage_bytes.used,
+             usage.storage_bytes.limit,
+             ('%.1f MB' % (usage.storage_bytes.used / 1024 / 1024)),
+             ('%.0f MB' % (usage.storage_bytes.limit / 1024 / 1024))) }}
+    {{ meter('Files', usage.files.used, usage.files.limit) }}
   </div>
+</section>
 
-  {% set storage_pct = (usage.storage_bytes.used * 100 // (usage.storage_bytes.limit or 1)) %}
-  <div class="row">
-    <div class="grow">
-      <div>Storage: <strong>{{ "%.1f"|format(usage.storage_bytes.used / 1024 / 1024) }} MB</strong> / {{ "%.0f"|format(usage.storage_bytes.limit / 1024 / 1024) }} MB</div>
-      <div class="meter"><span style="width: {{ [storage_pct,100] | min }}%"></span></div>
-    </div>
+<section class="card">
+  <h3 class="card-title">Plans</h3>
+  <div class="overflow-x-auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th></th><th>Free</th><th>Pro</th><th>Team</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Questions / month</td>
+          <td>{{ plans.free.asks_per_month }}</td>
+          <td>{{ plans.pro.asks_per_month }}</td>
+          <td>{{ plans.team.asks_per_month }}</td>
+        </tr>
+        <tr>
+          <td>Storage</td>
+          <td>{{ "%.0f"|format(plans.free.storage_bytes_max / 1024 / 1024) }} MB</td>
+          <td>{{ "%.0f"|format(plans.pro.storage_bytes_max / 1024 / 1024 / 1024) }} GB</td>
+          <td>{{ "%.0f"|format(plans.team.storage_bytes_max / 1024 / 1024 / 1024) }} GB</td>
+        </tr>
+        <tr>
+          <td>Files</td>
+          <td>{{ plans.free.files_max }}</td>
+          <td>{{ plans.pro.files_max }}</td>
+          <td>{{ plans.team.files_max }}</td>
+        </tr>
+        <tr>
+          <td>Members</td>
+          <td>{{ plans.free.members_max }}</td>
+          <td>{{ plans.pro.members_max }}</td>
+          <td>{{ plans.team.members_max }}</td>
+        </tr>
+        <tr>
+          <td>Price (USD/mo)</td>
+          <td>—</td>
+          <td>${{ plans.pro.price_monthly }}</td>
+          <td>${{ plans.team.price_monthly }}</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>{% if current_plan == 'free' %}<span class="pill pill-success">current</span>{% endif %}</td>
+          <td>
+            {% if stripe_configured and current_plan != 'pro' %}
+              <form method="POST" action="{{ url_for('settings.billing_checkout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="plan" value="pro">
+                <button class="btn btn-primary" type="submit">Upgrade</button>
+              </form>
+            {% elif current_plan == 'pro' %}<span class="pill pill-brand">current</span>{% endif %}
+          </td>
+          <td>
+            {% if stripe_configured and current_plan != 'team' %}
+              <form method="POST" action="{{ url_for('settings.billing_checkout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="plan" value="team">
+                <button class="btn btn-primary" type="submit">Upgrade</button>
+              </form>
+            {% elif current_plan == 'team' %}<span class="pill pill-warn">current</span>{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-
-  {% set files_pct = (usage.files.used * 100 // (usage.files.limit or 1)) %}
-  <div class="row">
-    <div class="grow">
-      <div>Files: <strong>{{ usage.files.used }}</strong> / {{ usage.files.limit }}</div>
-      <div class="meter"><span style="width: {{ [files_pct,100] | min }}%"></span></div>
-    </div>
-  </div>
-</div>
-
-<div class="card">
-  <h3>Plans</h3>
-  <table class="simple">
-    <tr><th></th><th>Free</th><th>Pro</th><th>Team</th></tr>
-    <tr><td>Questions / month</td>
-      <td>{{ plans.free.asks_per_month }}</td>
-      <td>{{ plans.pro.asks_per_month }}</td>
-      <td>{{ plans.team.asks_per_month }}</td></tr>
-    <tr><td>Storage</td>
-      <td>{{ "%.0f"|format(plans.free.storage_bytes_max / 1024 / 1024) }} MB</td>
-      <td>{{ "%.0f"|format(plans.pro.storage_bytes_max / 1024 / 1024 / 1024) }} GB</td>
-      <td>{{ "%.0f"|format(plans.team.storage_bytes_max / 1024 / 1024 / 1024) }} GB</td></tr>
-    <tr><td>Files</td>
-      <td>{{ plans.free.files_max }}</td>
-      <td>{{ plans.pro.files_max }}</td>
-      <td>{{ plans.team.files_max }}</td></tr>
-    <tr><td>Members</td>
-      <td>{{ plans.free.members_max }}</td>
-      <td>{{ plans.pro.members_max }}</td>
-      <td>{{ plans.team.members_max }}</td></tr>
-    <tr><td>Price (USD/mo)</td>
-      <td>—</td>
-      <td>${{ plans.pro.price_monthly }}</td>
-      <td>${{ plans.team.price_monthly }}</td></tr>
-    <tr><td></td>
-      <td>{% if current_plan == 'free' %}<span class="pill">current</span>{% endif %}</td>
-      <td>
-        {% if stripe_configured and current_plan != 'pro' %}
-        <form method="POST" action="{{ url_for('settings.billing_checkout') }}" style="display:inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="plan" value="pro">
-          <button class="btn btn-primary" type="submit">Upgrade</button>
-        </form>
-        {% elif current_plan == 'pro' %}<span class="pill pro">current</span>{% endif %}
-      </td>
-      <td>
-        {% if stripe_configured and current_plan != 'team' %}
-        <form method="POST" action="{{ url_for('settings.billing_checkout') }}" style="display:inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="plan" value="team">
-          <button class="btn btn-primary" type="submit">Upgrade</button>
-        </form>
-        {% elif current_plan == 'team' %}<span class="pill team">current</span>{% endif %}
-      </td>
-    </tr>
-  </table>
-</div>
+</section>
 {% endblock %}

@@ -168,10 +168,10 @@ def test_dashboard_renders_for_owner(auth_client, uploaded_file):
     auth_client.post("/ask/", json={"question": "?"})
     r = auth_client.get("/dashboard/")
     assert r.status_code == 200
-    # Stat numbers and chart bars are rendered.
+    # Stat counters + the per-day uploads/asks panels are rendered.
     assert b"Files" in r.data
     assert b"Conversations" in r.data
-    assert b"chart" in r.data
+    assert b"Uploads, last 30 days" in r.data
 
 
 # ---- OCR fallback wiring ----

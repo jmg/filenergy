@@ -1,12 +1,14 @@
-<ul>
+<ul class="divide-y divide-slate-100">
 {% for file in files %}
-<li id="file-{{file.id}}">
-    <a href="/file/download/?h={{file.url}}">{{file.name}}</a>
-
-    <div class="actions">
-        <img title="download" src="/static/img/download.png" onclick="downloadFile('{{file.url}}')"/>
-        <img title="delete" src="/static/img/delete.png" onclick="deleteFile('{{file.id}}')"/>
-    </div>
+<li id="file-{{file.id}}" class="flex items-center justify-between py-2">
+  <a class="font-medium text-brand-600 hover:underline"
+     href="/file/download/?h={{file.url}}">{{file.name}}</a>
+  <div class="flex gap-2 text-xs">
+    <button class="btn btn-ghost"
+            onclick="downloadFile('{{file.url}}')">Download</button>
+    <button class="btn btn-ghost text-rose-600"
+            onclick="deleteFile('{{file.id}}')">Delete</button>
+  </div>
 </li>
 {% endfor %}
 </ul>

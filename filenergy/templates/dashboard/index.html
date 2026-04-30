@@ -1,114 +1,121 @@
 {% extends "base.html" %}
 
-{% block header %}Activity{% endblock %}
-
-{% block css %}
-<style>
-  .stats { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
-  .stat { padding: 14px; border: 1px solid #eee; border-radius: 6px; background: #fff; }
-  .stat .num { font-size: 26px; font-weight: 600; color: #2a4d8f; }
-  .stat .label { font-size: 12px; color: #888; text-transform: uppercase; }
-  .chart { display: flex; align-items: flex-end; height: 120px; gap: 2px; padding: 12px; border: 1px solid #eee; border-radius: 6px; background: #fff; margin-bottom: 18px; }
-  .chart .bar { background: #4a7bd6; flex: 1; min-height: 1px; position: relative; border-radius: 2px 2px 0 0; }
-  .chart .bar.empty { background: #f0f0f0; }
-  .chart .bar:hover::after {
-    content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
-    background: #333; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; white-space: nowrap;
-  }
-  .chart-title { font-size: 13px; color: #666; text-transform: uppercase; margin-bottom: 6px; }
-  .top-files { padding: 10px; border: 1px solid #eee; border-radius: 6px; background: #fff; }
-  .top-files li { padding: 4px 0; }
-</style>
-{% endblock %}
-
 {% block content %}
-<div style="max-width:1000px;margin:auto;">
+<div class="mx-auto max-w-6xl space-y-6">
 
-  <div class="stats">
-    <div class="stat"><div class="num">{{ stats.files }}</div><div class="label">Files</div></div>
-    <div class="stat"><div class="num">{{ stats.indexed_files }}</div><div class="label">Indexed</div></div>
-    <div class="stat"><div class="num">{{ stats.collections }}</div><div class="label">Collections</div></div>
-    <div class="stat"><div class="num">{{ stats.conversations }}</div><div class="label">Conversations</div></div>
-    <div class="stat"><div class="num">{{ stats.messages }}</div><div class="label">Messages</div></div>
-    <div class="stat"><div class="num">{{ stats.members }}</div><div class="label">Members</div></div>
-    <div class="stat"><div class="num">{{ stats.api_keys_active }}</div><div class="label">API keys</div></div>
-    <div class="stat"><div class="num">{{ usage.label }}</div><div class="label">Plan</div></div>
+  <h2 class="text-2xl font-semibold">Workspace activity</h2>
+
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+    {% for label, num in [
+      ('Files', stats.files),
+      ('Indexed', stats.indexed_files),
+      ('Collections', stats.collections),
+      ('Conversations', stats.conversations),
+      ('Messages', stats.messages),
+      ('Members', stats.members),
+      ('API keys', stats.api_keys_active),
+      ('Plan', usage.label),
+    ] %}
+      <div class="card !p-3">
+        <div class="text-xl font-semibold text-brand-600">{{ num }}</div>
+        <div class="mt-0.5 text-xs uppercase tracking-wide text-slate-500">{{ label }}</div>
+      </div>
+    {% endfor %}
   </div>
 
   {% set max_uploads = (uploads | map(attribute="count") | max) or 1 %}
-  <div class="chart-title">Uploads, last 30 days</div>
-  <div class="chart">
-    {% for d in uploads %}
-      {% set h = (100 * d.count / max_uploads) | int %}
-      <div class="bar {% if d.count == 0 %}empty{% endif %}"
-           style="height: {{ [h, 1] | max }}%;"
-           data-tooltip="{{ d.date }}: {{ d.count }}"></div>
-    {% endfor %}
+  <div class="card">
+    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      Uploads, last 30 days
+    </div>
+    <div class="mt-3 flex h-32 items-end gap-1">
+      {% for d in uploads %}
+        {% set h = (100 * d.count / max_uploads) | int %}
+        <div class="group relative flex-1 rounded-sm transition
+                    {% if d.count == 0 %}bg-slate-100{% else %}bg-brand-500{% endif %}"
+             style="height: {{ [h, 1] | max }}%;"
+             title="{{ d.date }}: {{ d.count }}"></div>
+      {% endfor %}
+    </div>
   </div>
 
   {% set max_asks = (asks | map(attribute="count") | max) or 1 %}
-  <div class="chart-title">Questions asked, last 30 days</div>
-  <div class="chart">
-    {% for d in asks %}
-      {% set h = (100 * d.count / max_asks) | int %}
-      <div class="bar {% if d.count == 0 %}empty{% endif %}"
-           style="height: {{ [h, 1] | max }}%; background: #4caf50;"
-           data-tooltip="{{ d.date }}: {{ d.count }}"></div>
-    {% endfor %}
+  <div class="card">
+    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      Questions asked, last 30 days
+    </div>
+    <div class="mt-3 flex h-32 items-end gap-1">
+      {% for d in asks %}
+        {% set h = (100 * d.count / max_asks) | int %}
+        <div class="flex-1 rounded-sm
+                    {% if d.count == 0 %}bg-slate-100{% else %}bg-emerald-500{% endif %}"
+             style="height: {{ [h, 1] | max }}%;"
+             title="{{ d.date }}: {{ d.count }}"></div>
+      {% endfor %}
+    </div>
   </div>
 
   {% if top_files %}
-  <div class="chart-title">Most-cited files</div>
-  <ul class="top-files">
-    {% for fid, name, url, hits in top_files %}
-      <li>
-        <a href="{{ url_for('file.detail', file_id=fid) }}">{{ name }}</a>
-        <span style="color:#888;">· {{ hits }} citations</span>
+  <div class="card">
+    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      Most-cited files
+    </div>
+    <ul class="mt-2 divide-y divide-slate-100 text-sm">
+      {% for fid, name, url, hits in top_files %}
+      <li class="flex items-center justify-between py-2">
+        <a class="text-brand-600 hover:underline"
+           href="{{ url_for('file.detail', file_id=fid) }}">{{ name }}</a>
+        <span class="text-xs text-slate-500">{{ hits }} citations</span>
       </li>
-    {% endfor %}
-  </ul>
+      {% endfor %}
+    </ul>
+  </div>
   {% endif %}
 
   {% if top_chunks %}
-  <div class="chart-title" style="margin-top:18px;">Most-cited chunks</div>
-  <ul class="top-files">
-    {% for cid, pos, content, fname, furl, hits in top_chunks %}
-      <li>
-        <strong>{{ fname }}</strong>
-        <span style="color:#888;">· chunk #{{ pos }} · {{ hits }} citations</span>
-        <a href="#" class="show-context" data-chunk-id="{{ cid }}"
-           style="font-size:12px; margin-left:6px;">see in source →</a>
-        <div class="chunk-snippet" style="color:#555; font-size:13px; margin-top:2px;
-                    overflow:hidden; text-overflow:ellipsis;
-                    white-space:nowrap; max-width:100%;">
+  <div class="card">
+    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      Most-cited chunks
+    </div>
+    <ul class="mt-2 space-y-3 text-sm">
+      {% for cid, pos, content, fname, furl, hits in top_chunks %}
+      <li class="rounded border border-slate-100 bg-white p-3">
+        <div class="flex items-center justify-between">
+          <strong class="font-medium">{{ fname }}</strong>
+          <span class="text-xs text-slate-500">
+            chunk #{{ pos }} · {{ hits }} citations
+            <a href="#" class="show-context ml-2 text-brand-600 hover:underline"
+               data-chunk-id="{{ cid }}">see in source →</a>
+          </span>
+        </div>
+        <div class="chunk-snippet mt-1 truncate text-xs text-slate-600">
           {{ (content or '')[:200] }}{% if content and content|length > 200 %}…{% endif %}
         </div>
-        <div class="chunk-context" style="display:none; margin-top:6px; padding:8px;
-                    background:#fafafa; border:1px solid #eee; border-radius:4px;
-                    font-size:12px; line-height:1.45; max-height:240px; overflow:auto;">
-        </div>
+        <div class="chunk-context mt-2 hidden max-h-60 overflow-auto
+                    rounded bg-slate-50 p-3 text-xs leading-relaxed"></div>
       </li>
-    {% endfor %}
-  </ul>
+      {% endfor %}
+    </ul>
+  </div>
 
   <script>
     $('.show-context').on('click', function(e) {
       e.preventDefault();
       var $li = $(this).closest('li');
       var $ctx = $li.find('.chunk-context');
-      if ($ctx.is(':visible')) { $ctx.hide(); return; }
+      if (!$ctx.hasClass('hidden')) { $ctx.addClass('hidden'); return; }
       var cid = $(this).data('chunk-id');
       $.get('/file/chunk/' + cid + '/context', function(data) {
         function esc(s) { return $('<div>').text(s).html(); }
         var html = '';
-        if (data.truncated_left) html += '<span style="color:#aaa">…</span>';
+        if (data.truncated_left) html += '<span class="text-slate-400">…</span>';
         html += esc(data.before);
-        html += '<mark style="background:#ffe680">' + esc(data.cited) + '</mark>';
+        html += '<mark class="bg-amber-200">' + esc(data.cited) + '</mark>';
         html += esc(data.after);
-        if (data.truncated_right) html += '<span style="color:#aaa">…</span>';
-        $ctx.html(html).show();
+        if (data.truncated_right) html += '<span class="text-slate-400">…</span>';
+        $ctx.html(html).removeClass('hidden');
       }).fail(function() {
-        $ctx.text('Could not load source context.').show();
+        $ctx.text('Could not load source context.').removeClass('hidden');
       });
     });
   </script>

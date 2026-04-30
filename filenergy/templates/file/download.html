@@ -1,35 +1,40 @@
 {% extends "base.html" %}
 
-{% block js %}
-<script type="text/javascript">
-function downloadFileNow(h) {
+{% block content %}
+<div class="mx-auto max-w-xl">
+  <div class="card">
+    <h2 class="text-xl font-semibold">{{file.name}}</h2>
+    <dl class="mt-4 grid grid-cols-2 gap-2 text-sm">
+      <dt class="text-slate-500">File size</dt>
+      <dd class="font-medium text-slate-900">{{file_size}} KB</dd>
+      <dt class="text-slate-500">Uploaded</dt>
+      <dd class="font-medium text-slate-900">
+        {{file.created_at.strftime("%d-%m-%Y %H:%M")}}
+      </dd>
+      <dt class="text-slate-500">Uploaded by</dt>
+      <dd class="font-medium text-slate-900">{{file.user.username}}</dd>
+      <dt class="text-slate-500">Public</dt>
+      <dd>
+        <input type="checkbox"
+               class="rounded border-slate-300"
+               {% if file.user == g.user %}onchange="makePublic({{file.id}}, this)"{% else %}disabled{% endif %}
+               {% if file.is_public %}checked{% endif %}>
+      </dd>
+    </dl>
 
-    location.href = "/file/downloadnow/?h=" + h;
-}
+    <div class="mt-6">
+      <button class="btn btn-primary w-full"
+              onclick="downloadFileNow('{{file.url}}')">
+        Download now
+      </button>
+    </div>
+  </div>
+</div>
 
+<script>
+function downloadFileNow(h) { location.href = "/file/downloadnow/?h=" + h; }
 function makePublic(id, checkbox) {
-
-    $.post("/file/make_public/", {id: id, is_public: checkbox.checked}, function() {
-
-    });
+  $.post("/file/make_public/", {id: id, is_public: checkbox.checked});
 }
 </script>
-{% endblock %}
-
-{% block header %}Download{% endblock %}
-
-{% block content %}
-
-  <div class="row well file-list">
-
-    <div><span>File name:</span> {{file.name}}</div>
-    <div><span>File size:</span> {{file_size}} KB</div>
-    <div><span>Uploaded on:</span> {{file.created_at.strftime("%d-%m-%Y %H:%M")}}</div>
-    <div><span>Uploaded by:</span> {{file.user.username}}</div>
-    <div><span>Is Public:</span> <input {% if file.user == g.user %}onchange="makePublic({{file.id}}, this)"{% else %}disabled="disabled"{% endif %} type="checkbox" {% if file.is_public %}checked="checked"{% endif %}/></div>
-
-    <div class="download-btn"><button onclick="downloadFileNow('{{file.url}}')" class="btn btn-primary">Download Now!</button></div>
-
-  </div>
-
 {% endblock %}

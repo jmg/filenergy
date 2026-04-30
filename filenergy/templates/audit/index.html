@@ -1,41 +1,72 @@
 {% extends "base.html" %}
 
-{% block header %}Audit log{% endblock %}
-
 {% block content %}
-<div class="row" style="max-width:900px;margin:auto;">
+<div class="mx-auto max-w-5xl space-y-4">
+  <div class="card">
+    <form method="GET" class="flex flex-wrap items-end gap-2">
+      <div class="min-w-[12rem] flex-1">
+        <label class="label" for="audit_type">Event type prefix</label>
+        <input class="input" type="text" id="audit_type" name="type"
+               placeholder="user., file., ask..." value="{{ type_filter }}">
+      </div>
+      <div class="w-28">
+        <label class="label" for="audit_user">User id</label>
+        <input class="input" type="text" id="audit_user" name="user_id"
+               placeholder="42" value="{{ user_filter }}">
+      </div>
+      <button class="btn btn-primary" type="submit">Filter</button>
+      <a class="btn btn-ghost"
+         href="{{ url_for('audit.export_csv', type=type_filter, user_id=user_filter) }}">
+        Export CSV
+      </a>
+    </form>
+  </div>
 
-  <form method="GET" class="well form-inline">
-    <input type="text" name="type" placeholder="event type prefix..." value="{{ type_filter }}">
-    <input type="text" name="user_id" placeholder="user id..." value="{{ user_filter }}" style="width:80px;">
-    <button class="btn btn-primary" type="submit">Filter</button>
-    <a class="btn"
-       href="{{ url_for('audit.export_csv', type=type_filter, user_id=user_filter) }}">
-      Export CSV
-    </a>
-  </form>
+  <p class="text-sm text-slate-500">{{ total }} events</p>
 
-  <p style="color:#666;">{{ total }} events</p>
-  <table class="table">
-    <tr><th>When</th><th>Type</th><th>User</th><th>Metadata</th></tr>
-    {% for e in events %}
-    <tr>
-      <td><small>{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') if e.created_at else '' }}</small></td>
-      <td><code>{{ e.type }}</code></td>
-      <td>{% if e.user_id and users.get(e.user_id) %}{{ users[e.user_id].email }}{% else %}—{% endif %}</td>
-      <td><small style="color:#888;">{{ (e.metadata_json or '')[:120] }}</small></td>
-    </tr>
-    {% endfor %}
-  </table>
+  <div class="card">
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Type</th>
+            <th>User</th>
+            <th>Metadata</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in events %}
+          <tr>
+            <td class="whitespace-nowrap text-xs text-slate-500">
+              {{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') if e.created_at else '' }}
+            </td>
+            <td>
+              <code class="rounded bg-slate-100 px-1 py-0.5 text-xs">{{ e.type }}</code>
+            </td>
+            <td class="text-xs">
+              {% if e.user_id and users.get(e.user_id) %}
+                {{ users[e.user_id].email }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="max-w-md truncate text-xs text-slate-500">
+              {{ (e.metadata_json or '')[:120] }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 
-  <div style="display:flex;justify-content:space-between;">
+  <div class="flex justify-between">
     {% if page > 1 %}
-      <a class="btn" href="?page={{ page - 1 }}&type={{ type_filter }}&user_id={{ user_filter }}">← Prev</a>
-    {% else %}
-      <span></span>
-    {% endif %}
+      <a class="btn btn-ghost"
+         href="?page={{ page - 1 }}&type={{ type_filter }}&user_id={{ user_filter }}">← Prev</a>
+    {% else %}<span></span>{% endif %}
     {% if has_next %}
-      <a class="btn" href="?page={{ page + 1 }}&type={{ type_filter }}&user_id={{ user_filter }}">Next →</a>
+      <a class="btn btn-ghost"
+         href="?page={{ page + 1 }}&type={{ type_filter }}&user_id={{ user_filter }}">Next →</a>
     {% endif %}
   </div>
 </div>

@@ -1,67 +1,91 @@
 {% extends "settings/_layout.html" %}
 
-{% block header %}API keys{% endblock %}
-
 {% block settings %}
-<div class="card">
-  <h3>Programmatic access</h3>
-  <p>Use these tokens with <code>Authorization: Bearer &lt;token&gt;</code> against
-     <code>/api/v1/files</code> and <code>/api/v1/ask</code>.</p>
-  <form method="POST" action="{{ url_for('settings.create_key') }}">
+<section class="card">
+  <h3 class="card-title">Programmatic access</h3>
+  <p class="text-sm text-slate-600">
+    Use these tokens with <code class="rounded bg-slate-100 px-1 py-0.5 text-xs">Authorization: Bearer &lt;token&gt;</code>
+    against the REST API.
+  </p>
+  <form method="POST" action="{{ url_for('settings.create_key') }}"
+        class="mt-4 space-y-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p>
-      <input type="text" name="name" placeholder="What's this key for?" required style="width:280px;">
-    </p>
-    <div style="font-size:13px; color:#666; margin: 6px 0;">
-      Scopes (leave all unchecked for full access):
+    <div>
+      <label class="label" for="key_name">Name</label>
+      <input class="input" type="text" id="key_name" name="name"
+             placeholder="What's this key for?" required>
     </div>
-    <div style="display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:4px 16px; font-size:13px;">
-      <label><input type="checkbox" name="scopes" value="files:read"> files:read</label>
-      <label><input type="checkbox" name="scopes" value="files:write"> files:write</label>
-      <label><input type="checkbox" name="scopes" value="ask:read"> ask:read</label>
-      <label><input type="checkbox" name="scopes" value="ask:write"> ask:write</label>
-      <label><input type="checkbox" name="scopes" value="collections:read"> collections:read</label>
-      <label><input type="checkbox" name="scopes" value="collections:write"> collections:write</label>
-      <label><input type="checkbox" name="scopes" value="conversations:read"> conversations:read</label>
-      <label><input type="checkbox" name="scopes" value="conversations:write"> conversations:write</label>
-      <label><input type="checkbox" name="scopes" value="webhooks:read"> webhooks:read</label>
-      <label><input type="checkbox" name="scopes" value="webhooks:write"> webhooks:write</label>
-      <label><input type="checkbox" name="scopes" value="members:read"> members:read</label>
-      <label><input type="checkbox" name="scopes" value="members:write"> members:write</label>
-      <label><input type="checkbox" name="scopes" value="share_links:write"> share_links:write</label>
+    <div>
+      <div class="label">Scopes (leave all unchecked for full access)</div>
+      <div class="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
+        {% for scope in ['files:read','files:write','ask:read','ask:write',
+                          'collections:read','collections:write',
+                          'conversations:read','conversations:write',
+                          'webhooks:read','webhooks:write',
+                          'members:read','members:write',
+                          'share_links:write'] %}
+          <label class="flex items-center gap-2">
+            <input type="checkbox" name="scopes" value="{{ scope }}"
+                   class="rounded border-slate-300">
+            <code class="text-xs">{{ scope }}</code>
+          </label>
+        {% endfor %}
+      </div>
     </div>
-    <p style="margin-top:10px;">
-      <button class="btn btn-primary" type="submit">Create key</button>
-    </p>
+    <button class="btn btn-primary" type="submit">Create key</button>
   </form>
-</div>
+</section>
 
-<div class="card">
-  <h3>Existing keys</h3>
-  <table class="simple">
-    <tr><th>Name</th><th>Scopes</th><th>Prefix</th><th>Created</th><th>Last used</th><th></th></tr>
-    {% for k in keys %}
-    <tr>
-      <td>{{ k.name }} {% if not k.is_active %}<span class="pill" style="background:#fdd">revoked</span>{% endif %}</td>
-      <td><small>{% if k.scopes %}{{ k.scopes|join(', ') }}{% else %}<em>full access</em>{% endif %}</small></td>
-      <td><code class="token">{{ k.prefix }}…</code></td>
-      <td>{{ k.created_at.strftime('%Y-%m-%d') if k.created_at else '' }}</td>
-      <td>{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else '—' }}</td>
-      <td>
-        {% if k.is_active %}
-          <form method="POST" action="{{ url_for('settings.revoke_key', key_id=k.id) }}" style="display:inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-default danger" type="submit">Revoke</button>
-          </form>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
+<section class="card">
+  <h3 class="card-title">Existing keys</h3>
+  <div class="overflow-x-auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Scopes</th>
+          <th>Prefix</th>
+          <th>Created</th>
+          <th>Last used</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for k in keys %}
+        <tr>
+          <td>
+            {{ k.name }}
+            {% if not k.is_active %}<span class="pill pill-error">revoked</span>{% endif %}
+          </td>
+          <td class="text-xs text-slate-600">
+            {% if k.scopes %}{{ k.scopes|join(', ') }}{% else %}<em>full access</em>{% endif %}
+          </td>
+          <td><code class="rounded bg-slate-100 px-1 py-0.5 text-xs">{{ k.prefix }}…</code></td>
+          <td class="text-xs text-slate-500">
+            {{ k.created_at.strftime('%Y-%m-%d') if k.created_at else '' }}
+          </td>
+          <td class="text-xs text-slate-500">
+            {{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else '—' }}
+          </td>
+          <td class="text-right">
+            {% if k.is_active %}
+              <form method="POST"
+                    action="{{ url_for('settings.revoke_key', key_id=k.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-ghost" type="submit">Revoke</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 
-<div class="card">
-  <h3>Quick start</h3>
-<pre style="background:#f5f5f5;padding:12px;border-radius:6px;overflow:auto;font-size:12px">
+<section class="card">
+  <h3 class="card-title">Quick start</h3>
+<pre class="overflow-auto rounded bg-slate-900 p-4 text-xs text-slate-100">
 curl -X POST http://localhost:5000/api/v1/ask \
   -H "Authorization: Bearer $FILENERGY_TOKEN" \
   -H "Content-Type: application/json" \
@@ -71,5 +95,5 @@ curl -X POST http://localhost:5000/api/v1/files \
   -H "Authorization: Bearer $FILENERGY_TOKEN" \
   -F "files[]=@./report.pdf"
 </pre>
-</div>
+</section>
 {% endblock %}

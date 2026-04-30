@@ -46,6 +46,10 @@ class User(BaseModel):
     totp_enabled_at = db.Column(db.DateTime, nullable=True)
     recovery_codes_json = db.Column(db.Text, nullable=True)  # list of hashed codes
 
+    # Notifications
+    weekly_digest = db.Column(db.Boolean(), default=True)
+    last_digest_sent_at = db.Column(db.DateTime, nullable=True)
+
     @property
     def totp_enabled(self) -> bool:
         return bool(self.totp_secret) and self.totp_enabled_at is not None
@@ -125,6 +129,10 @@ class Workspace(BaseModel):
     stripe_customer_id = db.Column(db.String(64), nullable=True)
     stripe_subscription_id = db.Column(db.String(64), nullable=True)
     subscription_status = db.Column(db.String(32), nullable=True)
+
+    # Workspace-wide policy: when True, members must have TOTP or a passkey
+    # registered before they can use the workspace. Owner-controlled.
+    require_2fa = db.Column(db.Boolean(), default=False)
 
     owner = db.relationship("User", foreign_keys=[owner_id])
     members = db.relationship(
@@ -557,6 +565,32 @@ class ConnectorAccount(BaseModel):
     last_error = db.Column(db.Text, nullable=True)
 
     workspace = db.relationship("Workspace")
+
+
+class WebAuthnCredential(BaseModel):
+    """A registered passkey / hardware key for a user.
+
+    We store the raw `credential_id` (used by the browser to identify the
+    key on subsequent logins) and a JSON blob with the public key + sign
+    counter. The full WebAuthn ceremony is implemented at the service layer
+    on top of `webauthn` (PyPI). The DB layer is pluggable: any second
+    factor that implements challenge / response can sit here.
+    """
+
+    __tablename__ = "webauthn_credential"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
+    credential_id = db.Column(db.String(512), unique=True, index=True)
+    public_key = db.Column(db.Text)
+    sign_count = db.Column(db.Integer, default=0)
+    label = db.Column(db.String(120), nullable=True)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship(
+        "User", foreign_keys=[user_id],
+        backref=db.backref("webauthn_credentials", lazy="dynamic"),
+    )
 
 
 class WebhookDelivery(BaseModel):

@@ -1,122 +1,138 @@
 <!DOCTYPE html>
-
-<html lang="en">
-
+<html lang="en" class="h-full bg-slate-50 antialiased">
   <head>
-      <meta charset="utf-8">
-      <meta name="csrf-token" content="{{ csrf_token() }}">
-      <title>File Energy</title>
-      <link rel="shortcut icon" href="/static/img/logo.png"/>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Filenergy{% endblock %}</title>
+    <link rel="shortcut icon" href="/static/img/logo.png"/>
 
-      <script type="text/javascript" src="/static/js/jquery.min.js"></script>
-      <link rel="stylesheet" type="text/css" media="screen" href="/static/css/bootstrap.min.css">
-      <link rel="stylesheet" type="text/css" media="screen" href="/static/css/style.css">
+    <script type="text/javascript" src="/static/js/jquery.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+            },
+            colors: {
+              brand: {
+                50:  "#eff6ff",
+                100: "#dbeafe",
+                500: "#2563eb",
+                600: "#1d4ed8",
+                700: "#1e40af",
+              },
+            },
+          },
+        },
+      };
+    </script>
 
-      <script type="text/javascript">
-        // Attach the CSRF token to every same-origin Ajax request so JSON
-        // POST bodies (delete, reindex, share, etc.) clear Flask-WTF.
-        $(function() {
-          var token = $('meta[name="csrf-token"]').attr('content');
-          $.ajaxSetup({
-            beforeSend: function(xhr, settings) {
-              if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type)
-                  && !/^https?:/.test(settings.url)) {
-                xhr.setRequestHeader('X-CSRFToken', token);
-              }
+    <!-- Component classes used across templates. Tailwind CDN compiles them on the fly. -->
+    <style type="text/tailwindcss">
+      @layer components {
+        .btn          { @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60; }
+        .btn-primary  { @apply border-transparent bg-brand-500 text-white shadow-sm hover:bg-brand-600; }
+        .btn-danger   { @apply border-transparent bg-rose-600 text-white hover:bg-rose-700; }
+        .btn-ghost    { @apply border-transparent bg-transparent shadow-none hover:bg-slate-100; }
+        .btn-large    { @apply px-5 py-2.5 text-base; }
+        .input        { @apply block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30; }
+        .label        { @apply block text-sm font-medium text-slate-700; }
+        .card         { @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm; }
+        .card-title   { @apply text-base font-semibold text-slate-900; }
+        .pill         { @apply inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700; }
+        .pill-brand   { @apply bg-brand-100 text-brand-700; }
+        .pill-success { @apply bg-emerald-100 text-emerald-700; }
+        .pill-warn    { @apply bg-amber-100 text-amber-700; }
+        .pill-error   { @apply bg-rose-100 text-rose-700; }
+        .table        { @apply w-full text-left text-sm; }
+        .table th     { @apply border-b border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500; }
+        .table td     { @apply border-b border-slate-100 px-3 py-2.5 align-middle; }
+        .nav-link     { @apply rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900; }
+        .nav-link-active { @apply bg-slate-100 text-slate-900; }
+        .flash        { @apply mb-3 rounded-md border px-4 py-2 text-sm; }
+        .flash-error  { @apply border-rose-200 bg-rose-50 text-rose-700; }
+        .flash-success{ @apply border-emerald-200 bg-emerald-50 text-emerald-700; }
+        .prose-thin p { @apply mb-2; }
+      }
+    </style>
+
+    <script type="text/javascript">
+      $(function() {
+        var token = $('meta[name="csrf-token"]').attr('content');
+        $.ajaxSetup({
+          beforeSend: function(xhr, settings) {
+            if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type)
+                && !/^https?:/.test(settings.url)) {
+              xhr.setRequestHeader('X-CSRFToken', token);
             }
-          });
+          }
         });
-      </script>
+      });
+    </script>
 
-      {% block css %}
-      {% endblock %}
-
-      {% block js %}
+    {% block css %}{% endblock %}
+    {% block js %}
       <script type="text/javascript">
-        setTimeout(function() {
-          $(".flashes .message").fadeOut();
-        }, 1000);
+        setTimeout(function() { $(".flash").fadeOut(); }, 4000);
       </script>
-      {% endblock %}
+    {% endblock %}
   </head>
 
-  <body>
-
-    <div class="navbar navbar-fixed-top">
-     <div class="navbar-inner">
-       <div class="container">
-         <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-           <span class="icon-bar"></span>
-           <span class="icon-bar"></span>
-           <span class="icon-bar"></span>
-         </a>
-         <a class="brand" href="/">File Energy</a>
-         <div class="nav-collapse collapse" id="main-menu">
-          <ul class="nav" id="main-menu-left">
-
-            <li><a href="/file/upload/">Upload</a></li>
-            <li><a href="/file/list/">Files</a></li>
-            <li><a href="/collections/">Collections</a></li>
-            <li><a href="/ask/">Ask</a></li>
-            {% if g.user.is_authenticated %}
-              <li><a href="/connectors/">Connectors</a></li>
-              <li><a href="/dashboard/">Dashboard</a></li>
-              <li><a href="/settings/">Settings</a></li>
+  <body class="flex min-h-full flex-col font-sans text-slate-900">
+    <header class="border-b border-slate-200 bg-white">
+      <div class="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-6">
+        <a href="/" class="flex items-center gap-2 text-slate-900">
+          <img src="/static/img/logo.png" alt="" class="h-7 w-7 rounded">
+          <span class="text-base font-semibold">Filenergy</span>
+        </a>
+        <nav class="hidden items-center gap-1 md:flex">
+          {% if g.user.is_authenticated %}
+            <a href="/file/upload/" class="nav-link {% if request.path.startswith('/file/upload') %}nav-link-active{% endif %}">Upload</a>
+            <a href="/file/list/" class="nav-link {% if request.path.startswith('/file/list') or request.endpoint == 'file.detail' %}nav-link-active{% endif %}">Files</a>
+            <a href="/collections/" class="nav-link {% if request.path.startswith('/collections') %}nav-link-active{% endif %}">Collections</a>
+            <a href="/ask/" class="nav-link {% if request.path.startswith('/ask') %}nav-link-active{% endif %}">Ask</a>
+            <a href="/connectors/" class="nav-link {% if request.path.startswith('/connectors') %}nav-link-active{% endif %}">Connectors</a>
+            <a href="/dashboard/" class="nav-link {% if request.path.startswith('/dashboard') %}nav-link-active{% endif %}">Dashboard</a>
+            <a href="/settings/" class="nav-link {% if request.path.startswith('/settings') or request.path.startswith('/audit') %}nav-link-active{% endif %}">Settings</a>
+          {% endif %}
+        </nav>
+        <div class="flex items-center gap-2">
+          {% if g.user.is_authenticated %}
+            {% if g.workspace %}
+              <span class="hidden text-sm text-slate-500 sm:inline">{{ g.workspace.name }}</span>
+              <span class="pill {% if g.workspace.plan == 'pro' %}pill-brand{% elif g.workspace.plan == 'team' %}pill-warn{% endif %}">{{ g.workspace.plan or 'free' }}</span>
             {% endif %}
+            <a href="/user/logout/" class="btn btn-ghost">Sign out</a>
+          {% else %}
+            <a href="/user/login/" class="btn btn-ghost">Sign in</a>
+            <a href="/user/register/" class="btn btn-primary">Sign up</a>
+          {% endif %}
+        </div>
+      </div>
+    </header>
 
-          </ul>
-          <ul class="nav pull-right" id="main-menu-right">
-            {% if not g.user.is_authenticated %}
-            <li><a href="/user/login/">Login</a></li>
-            <li><a href="/user/register/">Signup</i></a></li>
-            {% else %}
-              {% if g.workspace %}
-                <li style="padding:10px 12px;color:#888;font-size:13px;">
-                  {{ g.workspace.name }}
-                  <span style="background:#eef3f8;color:#2a4d8f;padding:2px 7px;border-radius:10px;font-size:10px;text-transform:uppercase;margin-left:4px;">{{ g.workspace.plan or 'free' }}</span>
-                </li>
-              {% endif %}
-              <li><a href="/file/list/">{{g.user.email}}</a></li>
-              <li><a href="/user/logout/">Logout</a></li>
-            {% endif %}
-          </ul>
-         </div>
-       </div>
-     </div>
-    </div>
-
-    <div class="container">
-
-      <section id="content">
-
+    <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          <br>
-          <ul class="flashes">
-          {% for category, message in messages %}
-            <li class="{{category}}">{{ message }}</li>
-          {% endfor %}
-          </ul>
+          <div class="mb-4">
+            {% for category, message in messages %}
+              <div class="flash {% if category == 'error' %}flash-error{% else %}flash-success{% endif %}">{{ message }}</div>
+            {% endfor %}
+          </div>
         {% endif %}
       {% endwith %}
+
       {% block body %}{% endblock %}
+      {% block content %}{% endblock %}
+    </main>
 
-      <div class="page-header">
-        <h1>{% block header %}{% endblock %}</h1>
+    <footer class="border-t border-slate-200 bg-white">
+      <div class="mx-auto max-w-7xl px-4 py-4 text-xs text-slate-500 sm:px-6">
+        Filenergy · self-hosted file vault with chat, citations, and connectors.
       </div>
-
-      {% block content %}
-      {% endblock %}
-
-      </section>
-
-      <hr>
-
-      <footer id="footer">
-        Author: <a href="https://github.com/jmg">Juan Manuel García</a>. Ask me for customization <a href="mailto:jmg.utn@gmail.com">jmg.utn@gmail.com</a>.<br>
-      </footer>
-
-    </div>
-
+    </footer>
   </body>
 </html>

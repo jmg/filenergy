@@ -1,36 +1,34 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <form action="/user/register/" method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2>Signup </h2>
-    <br>
+<div class="mx-auto max-w-md">
+  <div class="card">
+    <h2 class="text-xl font-semibold">Create your account</h2>
+    <form action="/user/register/" method="post" class="mt-4 space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <div class="control-group">
-        <div class="controls">
-          <input type="email" id="email" name="email" class="input-xlarge"
-            placeholder="Enter Email" value="{{ request.form.username }}"
-            required>
-        </div>
-    </div>
+      <div>
+        <label class="label" for="email">Email</label>
+        <input class="input" type="email" id="email" name="email"
+               placeholder="you@example.com" required>
+      </div>
 
-    <div class="control-group">
-        <div class="controls">
-          <input type="password" id="password" name="password" class="input-xlarge"
-            placeholder="Enter Password" required>
-        </div>
-    </div>
+      <div>
+        <label class="label" for="password">Password</label>
+        <input class="input" type="password" id="password" name="password" required>
+      </div>
 
-    <div class="control-group">
-        <div class="controls">
-          <input type="password" id="password_again" name="password_again" class="input-xlarge"
-            placeholder="Confirm Password" required>
-        </div>
-    </div>
+      <div>
+        <label class="label" for="password_again">Confirm password</label>
+        <input class="input" type="password" id="password_again" name="password_again" required>
+      </div>
 
-    <div class="control-group">
-        <div class="controls">
-          <button type="submit" class="btn btn-primary">Signup</button>
-        </div>
-    </div>
-  </form>
+      <button type="submit" class="btn btn-primary w-full">Create account</button>
+    </form>
+
+    <p class="mt-4 text-center text-sm text-slate-500">
+      Already a member? <a class="text-brand-500 hover:underline" href="{{ url_for('user.login') }}">Sign in</a>
+    </p>
+  </div>
+</div>
 {% endblock %}

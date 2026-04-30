@@ -1,35 +1,38 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <form action="/user/login/" method="post" style="max-width:380px;margin:auto;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2>Login</h2>
-    <br>
+<div class="mx-auto max-w-md">
+  <div class="card">
+    <h2 class="text-xl font-semibold">Sign in</h2>
+    <form action="/user/login/" method="post" class="mt-4 space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <div class="control-group">
-      <input type="email" id="email" name="email" class="input-xlarge"
-        placeholder="Email" value="{{ request.form.email or '' }}" required>
-    </div>
+      <div>
+        <label class="label" for="email">Email</label>
+        <input class="input" type="email" id="email" name="email"
+               placeholder="you@example.com" value="{{ request.form.email or '' }}" required>
+      </div>
 
-    <div class="control-group">
-      <input type="password" id="password" name="password" class="input-xlarge"
-        placeholder="Password" required>
-    </div>
+      <div>
+        <label class="label" for="password">Password</label>
+        <input class="input" type="password" id="password" name="password" required>
+      </div>
 
-    <input type="hidden" name="next" value="{% if next %}{{next}}{% endif %}"/>
+      <input type="hidden" name="next" value="{% if next %}{{next}}{% endif %}"/>
 
-    <div class="control-group">
-      <button type="submit" class="btn btn-primary">Login</button>
-    </div>
+      <button type="submit" class="btn btn-primary w-full">Sign in</button>
+    </form>
 
     {% if google_enabled %}
-      <hr>
-      <p>or</p>
-      <a class="btn btn-default btn-block" href="{{ url_for('user.oauth_google_login') }}">Sign in with Google</a>
+      <div class="my-4 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400">
+        <span class="h-px flex-1 bg-slate-200"></span>or<span class="h-px flex-1 bg-slate-200"></span>
+      </div>
+      <a class="btn w-full" href="{{ url_for('user.oauth_google_login') }}">Sign in with Google</a>
     {% endif %}
 
-    <hr>
-    <p style="font-size:13px;color:#888;">
-      Don't have an account? <a href="{{ url_for('user.register') }}">Sign up</a>
+    <p class="mt-4 text-center text-sm text-slate-500">
+      Don't have an account? <a class="text-brand-500 hover:underline" href="{{ url_for('user.register') }}">Sign up</a>
     </p>
-  </form>
+  </div>
+</div>
 {% endblock %}
