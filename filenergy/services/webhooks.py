@@ -15,7 +15,6 @@ import hmac
 import json
 import logging
 import secrets
-import threading
 from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
@@ -26,6 +25,7 @@ from filenergy.models import (
     WebhookSubscription,
     utcnow,
 )
+from filenergy.services import jobs
 
 log = logging.getLogger(__name__)
 
@@ -111,20 +111,27 @@ def dispatch(workspace_id: int, event_type: str, payload: dict[str, Any]) -> int
         return 0
 
     body = json.dumps({"event": event_type, "data": payload, "workspace_id": workspace_id})
+    # 5 attempts with 2s exponential backoff (2/4/8/16s) covers a
+    # consumer briefly under load without DOSing them. Tests pin
+    # FILENERGY_WEBHOOK_RETRIES=0 so each delivery runs exactly once.
+    import os
+    retries = int(os.environ.get("FILENERGY_WEBHOOK_RETRIES", "4"))
+    backoff = int(os.environ.get("FILENERGY_WEBHOOK_BACKOFF_S", "2"))
     for sub in interested:
-        if app.config.get("TESTING"):
-            _deliver_one(sub.id, event_type, body)
-        else:
-            threading.Thread(
-                target=_deliver_async, args=(sub.id, event_type, body),
-                name=f"webhook-{sub.id}", daemon=True,
-            ).start()
+        jobs.enqueue(
+            "filenergy.services.webhooks._deliver_one",
+            sub.id, event_type, body,
+            retries=retries,
+            retry_backoff_seconds=backoff,
+        )
     return len(interested)
 
 
-def _deliver_async(subscription_id: int, event_type: str, body: str) -> None:
-    with app.app_context():
-        _deliver_one(subscription_id, event_type, body)
+class WebhookDeliveryFailed(Exception):
+    """Raised after `_deliver_one` records a transient failure so the
+    jobs-queue retry policy can re-run the delivery. 4xx responses are
+    intentionally NOT retried (client error in the consumer's payload
+    handler — retrying just hammers them)."""
 
 
 def _deliver_one(subscription_id: int, event_type: str, body: str) -> WebhookDelivery:
@@ -150,6 +157,7 @@ def _deliver_one(subscription_id: int, event_type: str, body: str) -> WebhookDel
         "User-Agent": "Filenergy-Webhook/1",
     }
 
+    transient_failure = False
     try:
         req = urllib_request.Request(
             sub.url, data=body_bytes, headers=headers, method="POST"
@@ -162,7 +170,11 @@ def _deliver_one(subscription_id: int, event_type: str, body: str) -> WebhookDel
         delivery.delivered_at = utcnow()
         sub.last_status = status
         sub.last_attempt_at = utcnow()
-        if status >= 400:
+        if status >= 500:
+            sub.failure_count = (sub.failure_count or 0) + 1
+            delivery.error = f"HTTP {status}"
+            transient_failure = True
+        elif status >= 400:
             sub.failure_count = (sub.failure_count or 0) + 1
             delivery.error = f"HTTP {status}"
         else:
@@ -173,10 +185,14 @@ def _deliver_one(subscription_id: int, event_type: str, body: str) -> WebhookDel
         sub.last_status = exc.code
         sub.last_attempt_at = utcnow()
         sub.failure_count = (sub.failure_count or 0) + 1
+        transient_failure = exc.code >= 500
     except Exception as exc:
         delivery.error = str(exc)[:500]
         sub.last_attempt_at = utcnow()
         sub.failure_count = (sub.failure_count or 0) + 1
+        transient_failure = True
 
     db.session.commit()
+    if transient_failure:
+        raise WebhookDeliveryFailed(delivery.error or "transient failure")
     return delivery

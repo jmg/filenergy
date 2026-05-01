@@ -21,6 +21,94 @@
 
       <button type="submit" class="btn btn-primary w-full">Verify</button>
     </form>
+
+    {% if webauthn_enabled %}
+      <div class="my-4 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400">
+        <span class="h-px flex-1 bg-slate-200"></span>or<span class="h-px flex-1 bg-slate-200"></span>
+      </div>
+      <button id="webauthn-btn" class="btn w-full" type="button">
+        Use security key / passkey
+      </button>
+      <p id="webauthn-status" class="mt-2 hidden text-center text-xs text-slate-500"></p>
+    {% endif %}
   </div>
 </div>
+
+{% if webauthn_enabled %}
+<script>
+(function() {
+  if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
+    $('#webauthn-btn').prop('disabled', true).text('Browser does not support passkeys');
+    return;
+  }
+  function b64urlToBuf(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var raw = atob(s);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr.buffer;
+  }
+  function bufToB64url(b) {
+    var bytes = new Uint8Array(b);
+    var s = '';
+    for (var i = 0; i < bytes.byteLength; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function show(msg, ok) {
+    var $s = $('#webauthn-status');
+    $s.removeClass('hidden text-rose-600 text-emerald-700');
+    $s.addClass(ok === false ? 'text-rose-600' : 'text-slate-500');
+    $s.text(msg);
+  }
+  $('#webauthn-btn').on('click', async function() {
+    show('Awaiting your security key...');
+    try {
+      var beginResp = await fetch('{{ url_for("user.two_factor_webauthn_begin") }}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': $('meta[name=csrf-token]').attr('content')},
+      });
+      if (!beginResp.ok) throw new Error('begin failed');
+      var options = await beginResp.json();
+      options.challenge = b64urlToBuf(options.challenge);
+      if (options.allowCredentials) {
+        options.allowCredentials = options.allowCredentials.map(function(c) {
+          return Object.assign({}, c, {id: b64urlToBuf(c.id)});
+        });
+      }
+      var assertion = await navigator.credentials.get({publicKey: options});
+      var payload = {
+        response: {
+          id: assertion.id,
+          rawId: bufToB64url(assertion.rawId),
+          type: assertion.type,
+          response: {
+            clientDataJSON: bufToB64url(assertion.response.clientDataJSON),
+            authenticatorData: bufToB64url(assertion.response.authenticatorData),
+            signature: bufToB64url(assertion.response.signature),
+            userHandle: assertion.response.userHandle ? bufToB64url(assertion.response.userHandle) : null,
+          },
+        },
+      };
+      var done = await fetch('{{ url_for("user.two_factor_webauthn_complete") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': $('meta[name=csrf-token]').attr('content'),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!done.ok) {
+        var err = await done.json().catch(function(){ return {error: 'failed'}; });
+        throw new Error(err.error || 'failed');
+      }
+      var result = await done.json();
+      location.href = result.next || '/';
+    } catch (err) {
+      show('Sign-in failed: ' + (err.message || err), false);
+    }
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

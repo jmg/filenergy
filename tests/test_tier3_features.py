@@ -405,17 +405,65 @@ def test_digest_skips_user_with_no_workspace(monkeypatch, db, app):
     assert n == 0
 
 
-def test_webauthn_full_ceremony_methods_raise_until_library_wired(db, user):
+def test_webauthn_begin_registration_returns_options(client, db, user):
+    """The full FIDO2 ceremony emits PublicKeyCredentialCreationOptions
+    that the browser feeds to navigator.credentials.create()."""
+    from filenergy.services import webauthn
+
+    # begin_* uses Flask session, so wrap in a request context.
+    with client.session_transaction():
+        pass
+    client.post(
+        "/user/login/",
+        data={"email": user.email, "password": "password"},
+    )
+    r = client.post("/settings/security/webauthn/begin")
+    assert r.status_code == 200
+    options = r.get_json()
+    # Required by the WebAuthn spec.
+    assert "challenge" in options
+    assert "rp" in options
+    assert "user" in options
+    assert "pubKeyCredParams" in options
+
+
+def test_webauthn_begin_authentication_requires_credential(db, user):
+    """No credentials registered → can't begin auth."""
     from filenergy.services import webauthn
 
     with pytest.raises(webauthn.WebAuthnError):
-        webauthn.begin_registration(user, rp_id="x", rp_name="y")
-    with pytest.raises(webauthn.WebAuthnError):
-        webauthn.complete_registration(user, {})
-    with pytest.raises(webauthn.WebAuthnError):
-        webauthn.begin_authentication(user, rp_id="x")
-    with pytest.raises(webauthn.WebAuthnError):
-        webauthn.complete_authentication(user, {})
+        webauthn.begin_authentication(user)
+
+
+def test_webauthn_complete_authentication_rejects_unknown_credential(
+    monkeypatch, app, db, user,
+):
+    """A response carrying an id we don't have on file is rejected."""
+    from flask import session
+    from filenergy.services import webauthn
+
+    with app.test_request_context():
+        session[webauthn._AUTH_CHALLENGE_KEY] = "abc"
+        ok = webauthn.complete_authentication(
+            user, response={"id": "unknown-id"}
+        )
+        assert ok is False
+
+
+def test_webauthn_complete_authentication_rejects_stub_credential(
+    monkeypatch, app, db, user,
+):
+    """Stub credentials (public_key='stub') can't pass real verification."""
+    from flask import session
+    from filenergy.services import webauthn
+
+    cred = webauthn.register_stub(user, label="stub")
+    with app.test_request_context():
+        session[webauthn._AUTH_CHALLENGE_KEY] = "abc"
+        ok = webauthn.complete_authentication(
+            user, response={"id": cred.credential_id}
+        )
+        assert ok is False
 
 
 def test_webauthn_delete_unknown_returns_false(db, user):

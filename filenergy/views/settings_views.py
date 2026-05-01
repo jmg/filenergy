@@ -140,6 +140,39 @@ def webauthn_register():
     return redirect(url_for("settings.security"))
 
 
+@settings_bp.route("/security/webauthn/begin", methods=["POST"])
+@login_required
+def webauthn_begin():
+    """Start a real FIDO2 registration ceremony — returns the
+    PublicKeyCredentialCreationOptions dict for `navigator.credentials.create`."""
+    from flask import jsonify
+    try:
+        options = webauthn.begin_registration(g.user)
+    except webauthn.WebAuthnError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(options)
+
+
+@settings_bp.route("/security/webauthn/complete", methods=["POST"])
+@login_required
+def webauthn_complete():
+    """Finish a real FIDO2 registration ceremony."""
+    from flask import jsonify
+    payload = request.get_json(silent=True) or {}
+    label = (payload.get("label") or "Security key").strip()[:120]
+    response = payload.get("response") or {}
+    try:
+        cred = webauthn.complete_registration(
+            g.user, response=response, label=label,
+        )
+    except webauthn.WebAuthnError as exc:
+        return jsonify({"error": str(exc)}), 400
+    events.log_event(
+        events.WEBAUTHN_REGISTERED, user=g.user, credential_id=cred.id,
+    )
+    return jsonify({"id": cred.id, "label": cred.label})
+
+
 @settings_bp.route("/security/webauthn/<int:cred_id>/delete", methods=["POST"])
 @login_required
 def webauthn_delete(cred_id):

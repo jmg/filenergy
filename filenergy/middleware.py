@@ -92,22 +92,32 @@ def before_request():
         return redirect(url_for("settings.security"))
 
 
-# Content Security Policy. Stricter would block the inline scripts in
-# our Bootstrap-3 templates and the Swagger UI CDN at /api/v1/docs;
-# loosening 'self' + listed CDN hosts is the minimum that keeps the app
-# working without giving up framing/eval/object-tag protection.
-_CSP = (
-    "default-src 'self'; "
-    "img-src 'self' data: https://avatars.githubusercontent.com; "
-    "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.tailwindcss.com; "
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.tailwindcss.com; "
-    "connect-src 'self'; "
-    "frame-ancestors 'none'; "
-    "base-uri 'self'; "
-    "object-src 'none'; "
-    "form-action 'self' https://accounts.google.com https://*.dropbox.com "
-    "https://api.notion.com https://slack.com https://stripe.com"
-)
+# Content Security Policy. Stricter would block the Swagger UI CDN at
+# /api/v1/docs and the inline form helpers we use across templates.
+# When the compiled Tailwind bundle is present we tighten the policy by
+# removing the cdn.tailwindcss.com allowance and dropping `'unsafe-eval'`
+# (the Play CDN compiles styles via eval, the bundle does not need it).
+def _build_csp() -> str:
+    import os as _os
+    bundle = _os.path.join(app.static_folder, "css", "app.css")
+    has_bundle = _os.path.isfile(bundle)
+    style_extra = "" if has_bundle else " https://cdn.tailwindcss.com"
+    script_extra = "" if has_bundle else " https://cdn.tailwindcss.com 'unsafe-eval'"
+    return (
+        "default-src 'self'; "
+        "img-src 'self' data: https://avatars.githubusercontent.com; "
+        f"style-src 'self' 'unsafe-inline' https://unpkg.com{style_extra}; "
+        f"script-src 'self' 'unsafe-inline' https://unpkg.com{script_extra}; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "object-src 'none'; "
+        "form-action 'self' https://accounts.google.com https://*.dropbox.com "
+        "https://api.notion.com https://slack.com https://stripe.com"
+    )
+
+
+_CSP = _build_csp()
 
 _SECURITY_HEADERS = {
     # Force HTTPS for a year + preload + subdomains. Harmless on HTTP

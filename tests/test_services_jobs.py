@@ -155,5 +155,36 @@ def test_run_swallows_exceptions(app, caplog):
     sys.modules["__main__boom"] = types.ModuleType("__main__boom")
     sys.modules["__main__boom"].boom = boom
     with caplog.at_level("ERROR", logger="filenergy.services.jobs"):
-        jobs._run("__main__boom.boom", (), {})
+        jobs._run("__main__boom.boom", (), {}, 0, 0)
     assert any("Job" in r.message for r in caplog.records)
+
+
+def test_retries_run_until_success(app, monkeypatch):
+    """retries=N runs at most N+1 times; logs all but the final attempt."""
+    import sys, types
+    attempts = []
+
+    def flap():
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise RuntimeError("transient")
+
+    sys.modules["__main__flap"] = types.ModuleType("__main__flap")
+    sys.modules["__main__flap"].flap = flap
+    jobs.enqueue("__main__flap.flap", retries=4, retry_backoff_seconds=0)
+    assert len(attempts) == 3
+
+
+def test_retries_give_up_after_exhaustion(app):
+    """retries=2 → at most 3 attempts; persistent failures don't loop forever."""
+    import sys, types
+    attempts = []
+
+    def boom():
+        attempts.append(1)
+        raise RuntimeError("persistent")
+
+    sys.modules["__main__persistent"] = types.ModuleType("__main__persistent")
+    sys.modules["__main__persistent"].boom = boom
+    jobs.enqueue("__main__persistent.boom", retries=2, retry_backoff_seconds=0)
+    assert len(attempts) == 3

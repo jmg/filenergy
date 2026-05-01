@@ -60,10 +60,11 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 - **2FA (TOTP)** — `pyotp` + QR code. 8 single-use recovery codes
   generated on enable. Login flow defers `login_user` until the OTP
   succeeds, so a stolen password alone is not enough.
-- **WebAuthn / passkeys** — register a hardware key (YubiKey, Touch ID,
-  Windows Hello) and use it as the second factor instead of a TOTP code.
-  Multiple keys per user; per-key labels and last-used timestamps in the
-  security settings.
+- **WebAuthn / passkeys** — full FIDO2 ceremony backed by `py_webauthn`:
+  `navigator.credentials.create/get` from the browser, challenge stash in
+  Flask session, attestation + assertion verification server-side. Also
+  ships a stub fallback for tests / pre-JS deploys. Multiple keys per
+  user; per-key labels and last-used timestamps in security settings.
 - **Workspace-wide 2FA enforcement** — owners can flip "Require 2FA"; any
   member without TOTP or a passkey is bounced to /settings/security on
   the next request until they enroll.
@@ -110,8 +111,16 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 
 ### Deploy
 
-- **Dockerfile** (Python 3.11 slim + gunicorn, non-root user, healthcheck).
+- **Dockerfile** with a multi-stage build: a Node 20 stage compiles
+  Tailwind into `static/css/app.css`, the Python 3.11 stage copies it
+  into the runtime image. base.html links the bundle when present and
+  falls back to the Play CDN in dev. CSP tightens automatically (drops
+  `'unsafe-eval'` and the CDN host) when the bundle is in use.
 - **docker-compose.yml** with a persistent SQLite volume.
+- **Background jobs** with retries — webhook deliveries (5xx + network
+  errors), digest emails (SMTP failures). Exponential backoff (2/4/8/16s)
+  via `jobs.enqueue(..., retries=4)`. RQ-backed when Redis is configured;
+  threading fallback otherwise.
 
 ### Ingestion
 

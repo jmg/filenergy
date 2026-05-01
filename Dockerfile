@@ -1,3 +1,20 @@
+# --- CSS build stage ---------------------------------------------------------
+# Compile Tailwind once at image-build time. Output gets baked into the
+# runtime image at /app/filenergy/static/css/app.css; base.html picks it up
+# automatically and serves it instead of pulling the Play CDN.
+FROM node:20-alpine AS css
+
+WORKDIR /build
+COPY package.json tailwind.config.js ./
+RUN npm install --silent
+COPY filenergy/static/css/tailwind.src.css ./filenergy/static/css/tailwind.src.css
+COPY filenergy/templates ./filenergy/templates
+RUN npx tailwindcss \
+        -i ./filenergy/static/css/tailwind.src.css \
+        -o ./filenergy/static/css/app.css \
+        --minify
+
+# --- Python runtime ---------------------------------------------------------
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -23,6 +40,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt gunicorn==23.0.0
 
 COPY . .
+# Overlay the compiled CSS produced by the css stage.
+COPY --from=css /build/filenergy/static/css/app.css ./filenergy/static/css/app.css
 
 # Non-root for runtime.
 RUN useradd --create-home --shell /bin/sh filenergy \
