@@ -262,6 +262,22 @@
       {% if g.user.is_authenticated %}
       var $cmdk = null;
       var cmdkAbort = null;
+      var cmdkActive = 0;     // index of the currently-highlighted row
+      var cmdkLinks = [];     // jQuery objects, one per result row
+
+      function highlightCmdkRow(idx) {
+        cmdkLinks.forEach(function($a, i) {
+          $a.toggleClass('bg-brand-50 text-brand-700', i === idx)
+            .toggleClass('hover:bg-slate-50', i !== idx);
+        });
+        if (cmdkLinks[idx]) {
+          var node = cmdkLinks[idx][0];
+          if (node && node.scrollIntoView) {
+            node.scrollIntoView({block: 'nearest'});
+          }
+        }
+      }
+
       function openCmdK() {
         if ($cmdk) { $cmdk.find('input').focus(); return; }
         $cmdk = $(
@@ -273,29 +289,42 @@
                 '<span class="kbd">esc</span>' +
               '</div>' +
               '<ul class="cmdk-results max-h-80 overflow-y-auto py-1 text-sm"></ul>' +
+              '<div class="border-t border-slate-100 px-3 py-1.5 text-xs text-slate-400 flex justify-between">' +
+                '<span><span class="kbd">↑↓</span> navigate · <span class="kbd">↵</span> open</span>' +
+                '<span><span class="kbd">esc</span> close</span>' +
+              '</div>' +
             '</div>' +
           '</div>'
         );
         $('body').append($cmdk);
         function render(items) {
           var $ul = $cmdk.find('.cmdk-results').empty();
+          cmdkLinks = [];
+          cmdkActive = 0;
           if (!items.length) {
             $ul.append('<li class="px-4 py-3 text-slate-500">No matches.</li>');
             return;
           }
           items.forEach(function(c, i) {
-            var subtitle = c.subtitle ? '<span class="ml-auto text-xs text-slate-400">' + c.subtitle + '</span>' : '';
+            var subtitle = c.subtitle ? '<span class="ml-auto text-xs text-slate-400">' + $('<div>').text(c.subtitle).html() + '</span>' : '';
             var $li = $(
               '<li>' +
-                '<a href="' + c.href + '" class="flex items-center gap-3 px-4 py-2 ' + (i === 0 ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-50') + '">' +
+                '<a href="' + c.href + '" class="flex items-center gap-3 px-4 py-2">' +
                   '<svg class="icon"><use href="#' + (c.icon || 'i-search') + '"/></svg>' +
-                  '<span>' + $('<div>').text(c.label).html() + '</span>' +
+                  '<span class="truncate">' + $('<div>').text(c.label).html() + '</span>' +
                   subtitle +
                 '</a>' +
               '</li>'
             );
             $ul.append($li);
+            var $a = $li.find('a');
+            cmdkLinks.push($a);
+            $a.on('mouseenter', function() {
+              cmdkActive = i;
+              highlightCmdkRow(i);
+            });
           });
+          highlightCmdkRow(0);
         }
         function fetchResults(q) {
           if (cmdkAbort) cmdkAbort.abort();
@@ -303,18 +332,31 @@
             url: '/search', method: 'GET', data: {q: q},
           }).done(function(resp) { render(resp.results || []); });
         }
-        // Initial render: nav-only.
         fetchResults('');
         var debounceTimer = null;
-        $cmdk.find('input').on('input', function() {
+        var $input = $cmdk.find('input');
+        $input.on('input', function() {
           var q = $(this).val();
           clearTimeout(debounceTimer);
           debounceTimer = setTimeout(function(){ fetchResults(q); }, 120);
         }).focus();
-        $cmdk.find('input').on('keydown', function(e) {
-          if (e.key === 'Enter') {
-            var first = $cmdk.find('.cmdk-results a').first();
-            if (first.length) { location.href = first.attr('href'); }
+        $input.on('keydown', function(e) {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (cmdkLinks.length) {
+              cmdkActive = (cmdkActive + 1) % cmdkLinks.length;
+              highlightCmdkRow(cmdkActive);
+            }
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (cmdkLinks.length) {
+              cmdkActive = (cmdkActive - 1 + cmdkLinks.length) % cmdkLinks.length;
+              highlightCmdkRow(cmdkActive);
+            }
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            var $a = cmdkLinks[cmdkActive];
+            if ($a) { location.href = $a.attr('href'); }
           }
         });
         $cmdk.on('click', function(e) { if (e.target === this) closeCmdK(); });
@@ -322,6 +364,7 @@
       function closeCmdK() {
         if (cmdkAbort) { cmdkAbort.abort(); cmdkAbort = null; }
         if ($cmdk) { $cmdk.remove(); $cmdk = null; }
+        cmdkLinks = [];
       }
       $('#cmdk-trigger').on('click', openCmdK);
       $(document).on('keydown', function(e) {

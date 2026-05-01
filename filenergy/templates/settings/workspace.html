@@ -153,6 +153,30 @@
 </section>
 
 <section class="card">
+  <h3 class="card-title">Email-to-ingest</h3>
+  {% if inbound_address %}
+    <p class="mt-1 text-sm text-slate-600">
+      Forward an email to this address and it will be parsed, ingested,
+      and indexed into this workspace. Attachments become files. Body
+      becomes a markdown note.
+    </p>
+    <div class="mt-3 flex items-center gap-2 rounded bg-slate-100 px-3 py-2 font-mono text-sm">
+      <span class="flex-1 break-all">{{ inbound_address }}</span>
+      <button type="button" class="btn btn-ghost text-xs"
+              onclick="navigator.clipboard.writeText('{{ inbound_address }}').then(function(){ window.fnToast('Copied','success'); })">
+        Copy
+      </button>
+    </div>
+  {% else %}
+    <p class="mt-1 text-sm text-slate-500">
+      Inbound email is not configured on this instance. The administrator
+      can enable it by setting <code class="rounded bg-slate-100 px-1">FILENERGY_INBOUND_DOMAIN</code>
+      and <code class="rounded bg-slate-100 px-1">FILENERGY_INBOUND_SECRET</code>.
+    </p>
+  {% endif %}
+</section>
+
+<section class="card">
   <h3 class="card-title">Export workspace data</h3>
   <p class="text-sm text-slate-600">
     Download a ZIP bundle with files, conversations, audit log and member

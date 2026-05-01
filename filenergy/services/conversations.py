@@ -31,10 +31,21 @@ def get_or_create(user, workspace, conversation_id: int | None) -> Conversation:
     return conv
 
 
-def list_for_user(user, workspace) -> list[Conversation]:
+def list_for_user(
+    user, workspace, *, include_archived: bool = False,
+) -> list[Conversation]:
+    """Return the user's conversations in sidebar order: pinned first,
+    then most-recent. Archived threads are hidden by default."""
+    q = Conversation.query.filter_by(
+        user_id=user.id, workspace_id=workspace.id,
+    )
+    if not include_archived:
+        q = q.filter(Conversation.archived_at.is_(None))
     return (
-        Conversation.query.filter_by(user_id=user.id, workspace_id=workspace.id)
-        .order_by(Conversation.id.desc())
+        q.order_by(
+            Conversation.pinned_at.is_(None),  # NULL last → pinned first
+            Conversation.id.desc(),
+        )
         .limit(50)
         .all()
     )

@@ -88,12 +88,14 @@ def revoke_key(key_id):
 @settings_bp.route("/workspace")
 @login_required
 def workspace():
+    from filenergy.services import inbound_email
     return render_template(
         "settings/workspace.html",
         members=workspaces.members(g.workspace),
         invitations=workspaces.pending_invitations(g.workspace),
         my_role=workspaces.role_of(g.workspace, g.user),
         my_workspaces=workspaces.list_for_user(g.user),
+        inbound_address=inbound_email.address_for(g.workspace),
     )
 
 

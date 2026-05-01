@@ -16,10 +16,16 @@
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent</h4>
     <nav id="conv-list" class="space-y-1">
       {% for c in conversations %}
-        <a href="/ask/c/{{c.id}}" data-title="{{ c.title or 'Untitled' }}"
-           class="conv-link {% if active_conversation and active_conversation.id == c.id %}nav-link-active{% else %}nav-link{% endif %} truncate text-sm">
-          {{ c.title or 'Untitled' }}
-        </a>
+        <div class="group relative" data-conv-id="{{ c.id }}">
+          <a href="/ask/c/{{c.id}}" data-title="{{ c.title or 'Untitled' }}"
+             class="conv-link {% if active_conversation and active_conversation.id == c.id %}nav-link-active{% else %}nav-link{% endif %} truncate pr-8 text-sm">
+            {% if c.pinned_at %}<span class="mr-1 text-amber-500">★</span>{% endif %}
+            {{ c.title or 'Untitled' }}
+          </a>
+          <button type="button" class="conv-menu-btn absolute right-1 top-1 hidden rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 group-hover:block"
+                  data-conv-id="{{ c.id }}" data-pinned="{{ '1' if c.pinned_at else '' }}"
+                  title="More options">⋯</button>
+        </div>
       {% else %}
         <p class="text-xs text-slate-400">No threads yet.</p>
       {% endfor %}
@@ -410,11 +416,36 @@
     if ($b.children().length === 0) { $b.html(renderMarkdown($b.text())); }
   });
 
+  // Conversation actions menu (pin / archive).
+  $(document).on('click', '.conv-menu-btn', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    var $btn = $(this);
+    var convId = $btn.data('conv-id');
+    var pinned = !!$btn.data('pinned');
+    $('.conv-menu').remove();
+    var $menu = $(
+      '<div class="conv-menu absolute right-1 top-7 z-20 w-36 rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg">' +
+        '<button type="button" data-action="pin"     class="block w-full px-3 py-1.5 text-left hover:bg-slate-50">' + (pinned ? 'Unpin' : 'Pin') + '</button>' +
+        '<button type="button" data-action="archive" class="block w-full px-3 py-1.5 text-left hover:bg-slate-50">Archive</button>' +
+      '</div>'
+    );
+    $btn.parent().append($menu);
+    $menu.find('button').on('click', function() {
+      var action = $(this).data('action');
+      $.post('/ask/c/' + convId + '/' + action).done(function() {
+        location.reload();
+      }).fail(function() { window.fnToast('Could not update', 'error'); });
+    });
+  });
+  // Click-outside dismisses any open conversation menu.
+  $(document).on('click', function() { $('.conv-menu').remove(); });
+
   $('#conv-filter').on('input', function() {
     var q = $(this).val().toLowerCase();
     $('#conv-list .conv-link').each(function() {
-      var t = ($(this).attr('data-title') || '').toLowerCase();
-      $(this).toggle(!q || t.indexOf(q) >= 0);
+      var $a = $(this);
+      var t = ($a.attr('data-title') || '').toLowerCase();
+      $a.closest('[data-conv-id]').toggle(!q || t.indexOf(q) >= 0);
     });
   });
 

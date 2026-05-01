@@ -105,6 +105,7 @@ def chunk_context(chunk_id):
 def list_files():
     files = (
         File.query.filter_by(workspace_id=g.workspace.id)
+        .filter(File.deleted_at.is_(None))
         .order_by(File.id.desc())
         .all()
     )
@@ -190,18 +191,34 @@ def search():
 @file_bp.route("/delete/", methods=["POST"])
 @login_required
 def delete():
+    """Soft-delete a single file (same grace window as bulk_delete)."""
+    from filenergy import db
+    from filenergy.models import utcnow
+
     db_file = File.query.filter_by(
-        id=request.form.get("id"), workspace_id=g.workspace.id
-    ).first()
-    if not FileService().delete(db_file):
-        return "fail"
-    return "ok"
+        id=request.form.get("id"), workspace_id=g.workspace.id,
+    ).filter(File.deleted_at.is_(None)).first()
+    if db_file is None:
+        return jsonify(error="Not found"), 404
+    db_file.deleted_at = utcnow()
+    db.session.commit()
+    events.log_event(
+        events.FILE_DELETED,
+        user=g.user, workspace_id=g.workspace.id, file_id=db_file.id, soft=True,
+    )
+    return jsonify(ok=True, id=db_file.id)
 
 
 @file_bp.route("/bulk_delete/", methods=["POST"])
 @login_required
 def bulk_delete():
-    # Accept both form-encoded (legacy) and JSON (UI multi-select).
+    """Soft-delete selected files. Files are hidden from the UI but stay
+    in the DB for `FILENERGY_DELETE_GRACE_HOURS` (default 24h) so users
+    can Undo from the toast. A periodic `flask purge-deleted-files` job
+    hard-deletes after the grace window.
+    """
+    from filenergy.models import utcnow
+
     raw_ids = request.form.getlist("ids[]") or request.form.getlist("ids")
     if not raw_ids:
         body = request.get_json(silent=True) or {}
@@ -213,17 +230,76 @@ def bulk_delete():
         except (TypeError, ValueError):
             pass
     if not ids:
-        return jsonify(deleted=0)
+        return jsonify(deleted=0, ids=[])
+
+    from filenergy import db
+    files = File.query.filter(
+        File.id.in_(ids),
+        File.workspace_id == g.workspace.id,
+        File.deleted_at.is_(None),
+    ).all()
+    soft_deleted_ids: list[int] = []
+    now = utcnow()
+    for f in files:
+        f.deleted_at = now
+        soft_deleted_ids.append(f.id)
+    db.session.commit()
+    for fid in soft_deleted_ids:
+        events.log_event(
+            events.FILE_DELETED,
+            user=g.user, workspace_id=g.workspace.id, file_id=fid, soft=True,
+        )
+    return jsonify(deleted=len(soft_deleted_ids), ids=soft_deleted_ids)
+
+
+@file_bp.route("/bulk_restore/", methods=["POST"])
+@login_required
+def bulk_restore():
+    """Reverse a soft-delete within the grace window."""
+    from filenergy import db
+
+    body = request.get_json(silent=True) or {}
+    raw_ids = body.get("ids") or []
+    ids: list[int] = []
+    for x in raw_ids:
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            pass
+    if not ids:
+        return jsonify(restored=0)
 
     files = File.query.filter(
-        File.id.in_(ids), File.workspace_id == g.workspace.id,
+        File.id.in_(ids),
+        File.workspace_id == g.workspace.id,
+        File.deleted_at.isnot(None),
     ).all()
-    deleted = 0
-    svc = FileService()
+    restored = 0
     for f in files:
-        if svc.delete(f):
-            deleted += 1
-    return jsonify(deleted=deleted)
+        f.deleted_at = None
+        restored += 1
+    db.session.commit()
+    return jsonify(restored=restored)
+
+
+@file_bp.route("/<int:file_id>/rename", methods=["POST"])
+@login_required
+def rename(file_id):
+    """Rename a file in place. Used by the file detail view."""
+    from filenergy import db
+
+    f = File.query.filter_by(
+        id=file_id, workspace_id=g.workspace.id,
+    ).first()
+    if f is None:
+        return jsonify(error="Not found"), 404
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify(error="Name is required"), 400
+    f.name = name[:1000]
+    db.session.commit()
+    return jsonify(ok=True, name=f.name)
 
 
 @file_bp.route("/reindex/", methods=["POST"])

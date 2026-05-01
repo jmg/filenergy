@@ -50,3 +50,26 @@ def _send_digests_cli():
     n = digest.send_pending()
     print(f"sent {n} digest(s)")
 
+
+# CLI: purge files that were soft-deleted more than the grace window ago.
+# Run hourly from cron / k8s. The grace window is FILENERGY_DELETE_GRACE_HOURS.
+@app.cli.command("purge-deleted-files")
+def _purge_deleted_files_cli():
+    from datetime import timedelta
+    from filenergy.models import File, utcnow
+    from filenergy.services.file import FileService
+
+    grace_hours = int(os.environ.get("FILENERGY_DELETE_GRACE_HOURS", "24"))
+    cutoff = utcnow() - timedelta(hours=grace_hours)
+    rows = (
+        File.query
+        .filter(File.deleted_at.isnot(None), File.deleted_at < cutoff)
+        .all()
+    )
+    svc = FileService()
+    purged = 0
+    for f in rows:
+        if svc.delete(f):
+            purged += 1
+    print(f"purged {purged} file(s) past {grace_hours}h grace")
+

@@ -1,71 +1,296 @@
 {% extends "base.html" %}
 
-{% block title %}Filenergy — your files, but askable{% endblock %}
+{% block title %}Filenergy — chat with your team's files{% endblock %}
 
 {% block content %}
-<section class="py-16 text-center">
-  <h1 class="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-    Your files, but <span class="text-brand-500">askable</span>.
-  </h1>
-  <p class="mx-auto mt-4 max-w-2xl text-lg leading-7 text-slate-600">
-    A private file host that indexes every PDF, doc, and note you upload —
-    then lets you chat with them. Powered by Claude, self-hostable in a
-    container.
-  </p>
-  <div class="mt-8 flex justify-center gap-3">
-    {% if g.user.is_authenticated %}
-      <a class="btn btn-primary btn-large" href="/file/upload/">Upload a file</a>
-      <a class="btn btn-large" href="/ask/">Ask your library</a>
-    {% else %}
-      <a class="btn btn-primary btn-large" href="/user/register/">Get started — free</a>
-      <a class="btn btn-large" href="/user/login/">Sign in</a>
-    {% endif %}
+
+{# ---------- Hero ---------- #}
+<section class="relative overflow-hidden py-16 sm:py-24">
+  <div class="absolute inset-0 -z-10 bg-gradient-to-b from-brand-50/60 via-white to-white"></div>
+  <div class="absolute inset-x-0 top-0 -z-10 mx-auto h-72 max-w-3xl rounded-full bg-brand-100/60 blur-3xl"></div>
+
+  <div class="mx-auto max-w-3xl text-center">
+    <span class="pill pill-brand mb-5">
+      <svg class="icon mr-1"><use href="#i-chat"/></svg>
+      AI knowledge base · self-hostable · Claude-powered
+    </span>
+    <h1 class="text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">
+      Your team's files,<br>
+      <span class="bg-gradient-to-r from-brand-500 to-brand-700 bg-clip-text text-transparent">
+        finally askable.
+      </span>
+    </h1>
+    <p class="mx-auto mt-5 max-w-2xl text-lg leading-7 text-slate-600">
+      Drop in PDFs, contracts, meeting notes, Slack threads, Drive files.
+      Filenergy extracts, embeds, and lets your whole team chat with the
+      library — with citations that point straight back to the source.
+    </p>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      {% if g.user.is_authenticated %}
+        <a class="btn btn-primary btn-large" href="/ask/">
+          <svg class="icon"><use href="#i-chat"/></svg> Open chat
+        </a>
+        <a class="btn btn-large" href="/file/upload/">Upload a file</a>
+      {% else %}
+        <a class="btn btn-primary btn-large" href="/user/register/">
+          Get started — free
+        </a>
+        <a class="btn btn-large" href="#how">See how it works</a>
+      {% endif %}
+    </div>
+    <p class="mt-4 text-xs text-slate-500">
+      Free for individuals · self-host on your own server · no credit card
+    </p>
+  </div>
+
+  {# Visual mockup of the chat. #}
+  <div class="mx-auto mt-14 max-w-4xl px-4">
+    <div class="rounded-2xl bg-white p-2 shadow-2xl ring-1 ring-slate-200">
+      <img src="/static/img/landing-chat.svg"
+           alt="Filenergy chat with citations"
+           class="w-full rounded-xl">
+    </div>
   </div>
 </section>
 
-<section class="grid gap-4 py-8 sm:grid-cols-2 lg:grid-cols-3">
-  {% set features = [
-    ("Drop in any document",  "PDF, DOCX, Markdown, TXT, CSV, HTML — text extracted on the way in."),
-    ("Semantic search",       "Voyage embeddings. Ask in plain language; relevant excerpts surface in milliseconds."),
-    ("Cited answers",         "Claude grounds every answer in your files. Sources link back to the source paragraph."),
-    ("Streaming responses",   "Real-time tokens via Server-Sent Events. No 10-second blocking calls."),
-    ("Multi-turn memory",     "Threads persist; pick up where you left off."),
-    ("Private by default",    "Per-workspace isolation, hash-based share URLs, public toggle per file."),
-    ("Connectors",            "Google Drive, Notion, Slack, Dropbox — incremental sync via cursors."),
-    ("Webhooks + REST API",   "HMAC-signed outbound webhooks, OpenAPI-documented /api/v1 with per-key scopes."),
-    ("Self-hostable",         "Docker + Postgres + optional pgvector. SAML SSO + 2FA + audit log built in."),
-  ] %}
-  {% for title, body in features %}
-    <div class="card">
-      <h3 class="card-title">{{ title }}</h3>
-      <p class="mt-2 text-sm text-slate-600">{{ body }}</p>
+{# ---------- Logos / proof strip ---------- #}
+<section class="border-y border-slate-200 bg-white py-8">
+  <div class="mx-auto max-w-5xl px-4">
+    <p class="text-center text-xs font-semibold uppercase tracking-wider text-slate-500">
+      Built on the same stack the AI labs ship
+    </p>
+    <div class="mt-4 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-slate-400">
+      <span class="text-sm font-semibold">Anthropic Claude</span>
+      <span class="text-sm font-semibold">Voyage AI</span>
+      <span class="text-sm font-semibold">pgvector</span>
+      <span class="text-sm font-semibold">Flask</span>
+      <span class="text-sm font-semibold">Stripe</span>
+      <span class="text-sm font-semibold">SAML 2.0</span>
+      <span class="text-sm font-semibold">WebAuthn</span>
     </div>
-  {% endfor %}
+  </div>
 </section>
 
-<section class="card my-8 bg-slate-900 text-slate-100">
-  <h3 class="card-title text-white">How it works</h3>
-  <pre class="mt-3 whitespace-pre-wrap font-mono text-xs leading-5 text-slate-300">upload  →  text extraction  →  chunk &amp; embed (Voyage)  →  SQLite / Postgres + pgvector
-
-ask     →  embed query  →  cosine top-K  →  Claude (RAG, streaming)  →  cited answer</pre>
+{# ---------- Three-up value prop ---------- #}
+<section class="py-16 sm:py-24">
+  <div class="mx-auto max-w-5xl px-4">
+    <div class="grid gap-8 md:grid-cols-3">
+      <div>
+        <div class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
+          <svg class="icon-lg"><use href="#i-search"/></svg>
+        </div>
+        <h3 class="mt-3 text-lg font-semibold">Cited answers, not guesses</h3>
+        <p class="mt-2 text-sm text-slate-600">
+          Every answer is grounded in retrieved chunks of your real files.
+          One-click drill-through to the source paragraph.
+        </p>
+      </div>
+      <div>
+        <div class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
+          <svg class="icon-lg"><use href="#i-plug"/></svg>
+        </div>
+        <h3 class="mt-3 text-lg font-semibold">Connect what you already use</h3>
+        <p class="mt-2 text-sm text-slate-600">
+          Google Drive · Notion · Slack · Dropbox. Incremental sync,
+          per-workspace OAuth, no third-party indexer.
+        </p>
+      </div>
+      <div>
+        <div class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
+          <svg class="icon-lg"><use href="#i-cog"/></svg>
+        </div>
+        <h3 class="mt-3 text-lg font-semibold">Enterprise-grade, day one</h3>
+        <p class="mt-2 text-sm text-slate-600">
+          SAML SSO, SCIM, 2FA + WebAuthn, encryption at rest, audit log,
+          GDPR exports — already in the box.
+        </p>
+      </div>
+    </div>
+  </div>
 </section>
 
-<section class="card my-8">
-  <h4 class="card-title">Search files by name</h4>
-  <form class="mt-3 flex gap-2" onsubmit="searchFiles(this); return false;">
-    <input class="input flex-1" type="text" name="name" placeholder="invoice, brief, meeting notes…">
-    <button class="btn btn-primary" type="submit">Search</button>
-  </form>
-  <div id="results" class="mt-4 text-sm"></div>
+{# ---------- How it works ---------- #}
+<section id="how" class="py-16 sm:py-20">
+  <div class="mx-auto max-w-5xl px-4">
+    <h2 class="text-center text-3xl font-bold tracking-tight text-slate-900">
+      How it works
+    </h2>
+    <p class="mx-auto mt-3 max-w-xl text-center text-slate-600">
+      No vendor lock-in. No cloud-only. The whole stack runs in one container.
+    </p>
+
+    <div class="mt-10 grid gap-6 md:grid-cols-4">
+      {% for step in [
+        ('1', 'Upload', 'Drop files, paste a URL, or connect a source. We OCR, transcribe, and chunk.'),
+        ('2', 'Embed', 'Voyage embeddings into SQLite or pgvector. Encrypted at rest with your KEK.'),
+        ('3', 'Ask', 'Type, paste an image, or pick a starter. Streaming answers via SSE.'),
+        ('4', 'Cite', 'Every assistant turn links back to the chunk it used. Click → source paragraph.'),
+      ] %}
+        <div class="card text-center">
+          <span class="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-brand-500 text-sm font-semibold text-white">{{ step[0] }}</span>
+          <h3 class="mt-3 font-semibold">{{ step[1] }}</h3>
+          <p class="mt-2 text-sm text-slate-600">{{ step[2] }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
 </section>
 
-<script>
-  function searchFiles(form) {
-    var data = new FormData(form);
-    $.post("/file/search/", new URLSearchParams(data).toString(), function(html) {
-      $("#results").html(html);
-    });
-  }
-  function downloadFile(h) { location.href = "/file/download/?h=" + h; }
-</script>
+{# ---------- Feature grid ---------- #}
+<section class="bg-slate-50 py-16 sm:py-20">
+  <div class="mx-auto max-w-6xl px-4">
+    <h2 class="text-center text-3xl font-bold tracking-tight text-slate-900">
+      Everything you need, none of the bloat
+    </h2>
+
+    <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {% for icon, title, body in [
+        ('i-chat', 'Streaming chat', 'Server-Sent Events feed tokens to the browser as Claude generates them. Stop, regenerate, copy, thumbs up/down.'),
+        ('i-files', 'Vision in chat', 'Paste a screenshot into the composer and ask "where is this in our docs?". Claude sees both.'),
+        ('i-folder', 'Collections', 'Group files into notebooks. Scope a chat to one notebook, one file, or your whole library.'),
+        ('i-plug', 'Connectors', 'Drive, Notion, Slack, Dropbox. Incremental sync via cursors — no full re-scan, no quota waste.'),
+        ('i-search', 'Command palette', '⌘K from anywhere. Search files, conversations, collections, jump to any setting.'),
+        ('i-chart', 'Evals dashboard', 'Per-message thumbs up/down feeds an answer-quality dashboard. Find regressions before customers do.'),
+        ('i-cog', 'SAML SSO + SCIM', 'Okta, Workspace, Auth0, Azure AD. Auto-provision users + groups via SCIM 2.0.'),
+        ('i-alert', 'Audit + webhooks', 'Every action lands in the Event log. Customers get HMAC-signed POSTs on the events they pick.'),
+        ('i-refresh', 'Self-hostable', 'One container, SQLite or Postgres + pgvector. Ship Filenergy on your own infra in 5 minutes.'),
+      ] %}
+        <div class="card">
+          <div class="flex items-center gap-2">
+            <div class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-brand-100 text-brand-600">
+              <svg class="icon"><use href="#{{ icon }}"/></svg>
+            </div>
+            <h3 class="font-semibold">{{ title }}</h3>
+          </div>
+          <p class="mt-2 text-sm text-slate-600">{{ body }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ---------- Big code block / API tease ---------- #}
+<section class="py-16 sm:py-20">
+  <div class="mx-auto grid max-w-5xl gap-10 px-4 lg:grid-cols-2">
+    <div>
+      <h2 class="text-3xl font-bold tracking-tight text-slate-900">
+        Programmable from day one
+      </h2>
+      <p class="mt-3 text-slate-600">
+        Bearer-token API with per-key scopes. OpenAPI 3 spec at
+        <code class="rounded bg-slate-100 px-1 text-sm">/api/v1/openapi.json</code>,
+        Swagger UI at <code class="rounded bg-slate-100 px-1 text-sm">/api/v1/docs</code>.
+      </p>
+      <ul class="mt-4 space-y-2 text-sm text-slate-600">
+        <li class="flex gap-2">
+          <svg class="icon mt-0.5 text-brand-500"><use href="#i-check"/></svg>
+          Workspace-scoped tokens; rotate any time
+        </li>
+        <li class="flex gap-2">
+          <svg class="icon mt-0.5 text-brand-500"><use href="#i-check"/></svg>
+          Granular scopes (files:read, ask:write, …)
+        </li>
+        <li class="flex gap-2">
+          <svg class="icon mt-0.5 text-brand-500"><use href="#i-check"/></svg>
+          Outbound webhooks with HMAC-SHA256 signatures
+        </li>
+        <li class="flex gap-2">
+          <svg class="icon mt-0.5 text-brand-500"><use href="#i-check"/></svg>
+          Email-to-ingest: forward a mail, get a file
+        </li>
+      </ul>
+    </div>
+    <pre class="overflow-auto rounded-xl bg-slate-900 p-5 text-xs leading-relaxed text-slate-100 shadow-2xl">
+<span class="text-slate-400"># Ask via REST</span>
+curl -X POST https://your-host/api/v1/ask \
+  -H "Authorization: Bearer $FILENERGY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d <span class="text-emerald-300">'{"question": "What does the Acme MSA say about termination?"}'</span>
+
+<span class="text-slate-400"># Drop a file</span>
+curl -X POST https://your-host/api/v1/files \
+  -H "Authorization: Bearer $FILENERGY_TOKEN" \
+  -F "files[]=@./contract.pdf"</pre>
+  </div>
+</section>
+
+{# ---------- Pricing tease ---------- #}
+<section class="bg-slate-50 py-16 sm:py-20">
+  <div class="mx-auto max-w-5xl px-4">
+    <h2 class="text-center text-3xl font-bold tracking-tight text-slate-900">
+      Simple pricing
+    </h2>
+    <p class="mx-auto mt-3 max-w-xl text-center text-slate-600">
+      Start free. Upgrade when your team needs more.
+    </p>
+
+    <div class="mt-10 grid gap-4 md:grid-cols-3">
+      <div class="card">
+        <div class="text-sm font-semibold uppercase tracking-wide text-slate-500">Free</div>
+        <div class="mt-2 text-3xl font-bold">$0</div>
+        <p class="text-sm text-slate-500">Forever, for individuals.</p>
+        <ul class="mt-4 space-y-2 text-sm">
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>Up to 100 files</li>
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>500 questions/month</li>
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>1 GB storage</li>
+        </ul>
+        <a class="btn btn-ghost mt-5 w-full" href="/user/register/">Start free</a>
+      </div>
+
+      <div class="card border-2 border-brand-500 shadow-lg">
+        <div class="flex items-center justify-between">
+          <div class="text-sm font-semibold uppercase tracking-wide text-brand-600">Pro</div>
+          <span class="pill pill-brand">Most popular</span>
+        </div>
+        <div class="mt-2 text-3xl font-bold">$19<span class="text-base font-normal text-slate-500">/mo</span></div>
+        <p class="text-sm text-slate-500">For prosumers and small teams.</p>
+        <ul class="mt-4 space-y-2 text-sm">
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>5,000 files</li>
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>10,000 questions/month</li>
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>50 GB storage</li>
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>Connectors + webhooks</li>
+        </ul>
+        <a class="btn btn-primary mt-5 w-full" href="/user/register/?plan=pro">Start Pro trial</a>
+      </div>
+
+      <div class="card">
+        <div class="text-sm font-semibold uppercase tracking-wide text-slate-500">Team</div>
+        <div class="mt-2 text-3xl font-bold">$99<span class="text-base font-normal text-slate-500">/mo</span></div>
+        <p class="text-sm text-slate-500">For organisations &amp; compliance.</p>
+        <ul class="mt-4 space-y-2 text-sm">
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>Unlimited files &amp; storage</li>
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>SAML SSO + SCIM</li>
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>Workspace 2FA enforcement</li>
+          <li class="flex gap-2"><svg class="icon mt-0.5 text-emerald-500"><use href="#i-check"/></svg>Priority support</li>
+        </ul>
+        <a class="btn btn-ghost mt-5 w-full" href="/user/register/?plan=team">Talk to sales</a>
+      </div>
+    </div>
+
+    <p class="mt-6 text-center text-xs text-slate-500">
+      Self-hosting? <a class="text-brand-600 hover:underline" href="https://github.com">Run it on your own server</a> for free.
+    </p>
+  </div>
+</section>
+
+{# ---------- Final CTA ---------- #}
+<section class="py-16 sm:py-24">
+  <div class="mx-auto max-w-3xl rounded-2xl bg-gradient-to-r from-brand-600 to-brand-700 px-8 py-12 text-center text-white shadow-2xl">
+    <h2 class="text-3xl font-bold tracking-tight">
+      Stop searching. Start asking.
+    </h2>
+    <p class="mt-3 text-brand-100">
+      Set up takes 5 minutes. The first answer comes back in seconds.
+    </p>
+    <div class="mt-6 flex flex-wrap justify-center gap-3">
+      <a class="btn btn-large bg-white text-brand-700 hover:bg-slate-100" href="/user/register/">
+        Get started — free
+      </a>
+      <a class="btn btn-large border-white/30 bg-transparent text-white hover:bg-white/10" href="#how">
+        Read the docs
+      </a>
+    </div>
+  </div>
+</section>
+
 {% endblock %}

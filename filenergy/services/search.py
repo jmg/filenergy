@@ -59,6 +59,7 @@ def search(workspace, query: str, *, limit: int = 6) -> list[dict]:
     file_q = (
         File.query
         .filter(File.workspace_id == workspace.id)
+        .filter(File.deleted_at.is_(None))
         .filter(File.name.ilike(f"%{q}%"))
         .order_by(File.id.desc())
         .limit(limit)

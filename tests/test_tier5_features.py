@@ -180,6 +180,8 @@ def test_ask_stream_emits_message_id_meta(auth_client, db, user, workspace):
 
 
 def test_bulk_delete_via_json(auth_client, db, user, workspace, uploaded_file):
+    """Soft delete: row stays in the DB with `deleted_at` set so the
+    user can Undo. A cron job hard-deletes after the grace window."""
     from filenergy.models import File
 
     payload = json.dumps({"ids": [uploaded_file.id]})
@@ -189,7 +191,10 @@ def test_bulk_delete_via_json(auth_client, db, user, workspace, uploaded_file):
     )
     assert r.status_code == 200
     assert r.get_json()["deleted"] == 1
-    assert File.query.get(uploaded_file.id) is None
+    # Row still exists but is soft-deleted.
+    f = File.query.get(uploaded_file.id)
+    assert f is not None
+    assert f.deleted_at is not None
 
 
 def test_bulk_delete_handles_empty_payload(auth_client):

@@ -210,15 +210,20 @@ def test_make_public_404_for_other_user(client, db, uploaded_file):
     assert r.data == b"fail"
 
 
-def test_delete_endpoint_removes_file(auth_client, uploaded_file):
+def test_delete_endpoint_soft_deletes_file(auth_client, uploaded_file):
+    """Single delete is now a soft-delete; the row stays so users can Undo."""
     r = auth_client.post("/file/delete/", data={"id": uploaded_file.id})
-    assert r.data == b"ok"
-    assert File.query.count() == 0
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["ok"] is True
+    f = File.query.get(uploaded_file.id)
+    assert f is not None
+    assert f.deleted_at is not None
 
 
-def test_delete_returns_fail_for_unknown_id(auth_client):
+def test_delete_returns_404_for_unknown_id(auth_client):
     r = auth_client.post("/file/delete/", data={"id": 9999})
-    assert r.data == b"fail"
+    assert r.status_code == 404
 
 
 def test_reindex_endpoint(auth_client, uploaded_file):

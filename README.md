@@ -19,6 +19,25 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
 **Answer-quality dashboard (thumbs feedback over time + triage queue)**
 ![Evals](docs/screenshots/evals.svg)
 
+## What's new in this release
+
+- **Reranking on top of vector search** — every retrieval pulls a wider
+  candidate set, then a fast Claude pass scores each chunk 0–10 against
+  the query. Disable with `FILENERGY_RERANKER=noop`.
+- **SCIM 2.0** at `/scim/v2/*` — provision and de-provision users from
+  Okta, Workspace, Auth0, Azure AD. Bearer-token auth +
+  `X-Filenergy-Workspace-Slug` header.
+- **Email-to-ingest** — every workspace gets a deterministic
+  `inbox-<slug>-<token>@<domain>` address. Forward an email and the
+  body + attachments become indexed files.
+- **Soft-delete with undo** — bulk-delete shows a toast with an Undo
+  button for 8 seconds. Files only get hard-deleted after a grace
+  window (`flask purge-deleted-files` runs from cron).
+- **Conversation pinning + archiving** — pinned threads float to the
+  top of the sidebar; archived threads are hidden but kept for export.
+- **File rename**, **collection share links**, command-palette
+  arrow-key navigation, redesigned landing page.
+
 ## UX
 
 - **Command palette** (⌘K / Ctrl+K / `/`) — quick-jump to any page,

@@ -222,6 +222,10 @@ class File(BaseModel):
     text_content = db.Column(EncryptedText, nullable=True)
     summary = db.Column(db.Text, nullable=True)
     suggested_questions_json = db.Column(db.Text, nullable=True)
+    # Soft-delete: set when the user clicks Delete; a periodic purge job
+    # hard-deletes rows older than the grace window. Letting users Undo
+    # a destructive action is worth one extra column.
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
 
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     workspace_id = db.Column(
@@ -323,6 +327,10 @@ class Conversation(BaseModel):
         db.Integer, db.ForeignKey("workspace.id"), index=True
     )
     title = db.Column(db.String(255))
+    # Pinned threads float to the top of the sidebar; archived threads
+    # are hidden by default but kept for audit + GDPR exports.
+    pinned_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
 
     user = db.relationship(
         "User", foreign_keys=[user_id],
@@ -497,6 +505,38 @@ class ConversationShareLink(BaseModel):
     view_count = db.Column(db.Integer, default=0)
 
     conversation = db.relationship("Conversation")
+    created_by = db.relationship("User")
+
+    def is_active(self, *, now=None) -> bool:
+        if self.revoked_at is not None:
+            return False
+        now = now or utcnow()
+        if self.expires_at is not None and now >= self.expires_at:
+            return False
+        return True
+
+
+class CollectionShareLink(BaseModel):
+    """Public read-only listing of an entire Collection.
+
+    Different from `ShareLink` (one file) and `ConversationShareLink`
+    (one thread): exposes every indexed file in the collection at
+    `/sl/<token>` with download links that respect TTL + revocation.
+    """
+
+    __tablename__ = "collection_share_link"
+
+    id = db.Column(db.Integer, primary_key=True)
+    collection_id = db.Column(
+        db.Integer, db.ForeignKey("collection.id"), index=True,
+    )
+    token = db.Column(db.String(64), unique=True, index=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    view_count = db.Column(db.Integer, default=0)
+
+    collection = db.relationship("Collection")
     created_by = db.relationship("User")
 
     def is_active(self, *, now=None) -> bool:

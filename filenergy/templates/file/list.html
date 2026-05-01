@@ -132,21 +132,55 @@ $('#bulk-clear').on('click', function() {
 $('#bulk-delete').on('click', function() {
   var ids = selectedIds();
   if (!ids.length) return;
-  if (!confirm('Delete ' + ids.length + ' file(s)? This cannot be undone.')) return;
   $.ajax({
     url: '/file/bulk_delete/', method: 'POST',
     contentType: 'application/json',
     data: JSON.stringify({ids: ids}),
-  }).done(function() {
-    ids.forEach(function(id) {
+  }).done(function(resp) {
+    var deletedIds = resp.ids || ids;
+    deletedIds.forEach(function(id) {
       $('#file-' + id).fadeOut(150, function(){ $(this).remove(); });
     });
     refreshBulkBar();
-    window.fnToast(ids.length + ' file(s) deleted', 'success');
+    showUndoToast(deletedIds);
   }).fail(function() {
     window.fnToast('Bulk delete failed', 'error');
   });
 });
+
+// Undo toast: replaces the standard auto-hide success with an actionable
+// pill. Within 8 seconds, clicking Undo POSTs /file/bulk_restore/.
+function showUndoToast(ids) {
+  var $t = $(
+    '<div class="toast toast-info animate-slide-up" role="status">' +
+      '<svg class="icon-lg mt-0.5"><use href="#i-trash"/></svg>' +
+      '<div class="flex-1">' + ids.length + ' file(s) deleted</div>' +
+      '<button class="undo-btn rounded bg-white px-2 py-0.5 text-xs font-medium text-brand-600 hover:bg-slate-100">Undo</button>' +
+      '<button class="toast-close text-slate-400 hover:text-slate-700">' +
+        '<svg class="icon"><use href="#i-x"/></svg>' +
+      '</button>' +
+    '</div>'
+  );
+  $('#toast-container').append($t);
+  var hideTimer = setTimeout(function() {
+    $t.fadeOut(200, function(){ $(this).remove(); });
+  }, 8000);
+  $t.find('.undo-btn').on('click', function() {
+    clearTimeout(hideTimer);
+    $.ajax({
+      url: '/file/bulk_restore/', method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ids: ids}),
+    }).done(function() {
+      $t.fadeOut(150, function(){ $(this).remove(); });
+      window.fnToast(ids.length + ' file(s) restored', 'success');
+      // Reload so the table picks up the restored rows.
+      setTimeout(function(){ location.reload(); }, 400);
+    }).fail(function() {
+      window.fnToast('Could not restore', 'error');
+    });
+  });
+}
 
 $('#bulk-reindex').on('click', function() {
   var ids = selectedIds();
@@ -160,11 +194,11 @@ $('#bulk-reindex').on('click', function() {
 });
 
 function deleteFile(id) {
-  if (!confirm("Delete this file?")) return;
   var $row = $("#file-" + id);
   $row.css('opacity', 0.4);
   $.post("/file/delete/", {id: id}).done(function() {
     $row.fadeOut(150, function(){ $(this).remove(); });
+    showUndoToast([id]);
   }).fail(function() {
     $row.css('opacity', 1);
     window.fnToast('Could not delete file', 'error');
