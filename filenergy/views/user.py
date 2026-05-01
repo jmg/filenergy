@@ -72,7 +72,58 @@ def login_post():
 def two_factor():
     if not session.get(PENDING_2FA_KEY):
         return redirect(url_for("user.login"))
-    return render_template("user/two_factor.html")
+    user_id = session.get(PENDING_2FA_KEY)
+    user = User.query.get(user_id) if user_id else None
+    has_passkey = bool(user and webauthn.has_credential(user))
+    return render_template(
+        "user/two_factor.html",
+        webauthn_enabled=has_passkey,
+    )
+
+
+@user_bp.route("/2fa/webauthn/begin", methods=["POST"])
+def two_factor_webauthn_begin():
+    from flask import jsonify
+    user_id = session.get(PENDING_2FA_KEY)
+    if not user_id:
+        return jsonify({"error": "no pending login"}), 400
+    user = User.query.get(user_id)
+    if user is None:
+        return jsonify({"error": "no pending login"}), 400
+    try:
+        options = webauthn.begin_authentication(user)
+    except webauthn.WebAuthnError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(options)
+
+
+@user_bp.route("/2fa/webauthn/complete", methods=["POST"])
+def two_factor_webauthn_complete():
+    from flask import jsonify
+    user_id = session.get(PENDING_2FA_KEY)
+    if not user_id:
+        return jsonify({"error": "no pending login"}), 400
+    user = User.query.get(user_id)
+    if user is None:
+        return jsonify({"error": "no pending login"}), 400
+    payload = request.get_json(silent=True) or {}
+    response = payload.get("response") or {}
+    try:
+        ok = webauthn.complete_authentication(user, response=response)
+    except webauthn.WebAuthnError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not ok:
+        return jsonify({"error": "verification failed"}), 400
+
+    next_ = session.pop(PENDING_2FA_NEXT, None) or url_for("index.index")
+    session.pop(PENDING_2FA_KEY, None)
+    login_user(user)
+    from filenergy.services import workspaces
+    workspaces.ensure_default_for(user)
+    session_service.issue(user)
+    events.log_event(events.USER_LOGGED_IN, user=user, via="webauthn")
+    events.log_event(events.WEBAUTHN_VERIFIED, user=user)
+    return jsonify({"ok": True, "next": next_})
 
 
 @user_bp.route("/2fa", methods=["POST"])

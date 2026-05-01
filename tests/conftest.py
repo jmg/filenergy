@@ -23,6 +23,9 @@ os.environ["FILENERGY_DB_PATH"] = str(_TMP / "test.db")
 os.environ["FILENERGY_DB_URI"] = f"sqlite:///{_TMP / 'test.db'}"
 os.environ["FILENERGY_UPLOAD_DIR"] = str(_TMP / "files")
 os.environ["FILENERGY_SECRET_KEY"] = "test-secret-key"
+# Tests run jobs synchronously; default retries=0 so webhook tests still
+# observe a single delivery attempt. Specific retry tests bump this.
+os.environ.setdefault("FILENERGY_WEBHOOK_RETRIES", "0")
 
 import pytest  # noqa: E402
 

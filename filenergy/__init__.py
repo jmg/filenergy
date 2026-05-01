@@ -34,6 +34,15 @@ if not os.environ.get("FILENERGY_SKIP_CREATE_ALL"):
         db.create_all()
 
 
+# Expose presence of the compiled Tailwind bundle to every template. When
+# `static/css/app.css` exists (produced by `npm run build:css` during the
+# Docker build), base.html links to it and skips the Play CDN.
+@app.context_processor
+def _inject_css_bundle_flag():
+    bundle = os.path.join(app.static_folder, "css", "app.css")
+    return {"css_bundle_built": os.path.isfile(bundle)}
+
+
 # CLI: weekly digest send-out. Wire as `flask send-digests` (cron / k8s job).
 @app.cli.command("send-digests")
 def _send_digests_cli():

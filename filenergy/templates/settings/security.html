@@ -59,15 +59,96 @@
   {% else %}
     <p class="mt-3 text-xs text-slate-500">No passkeys registered yet.</p>
   {% endif %}
-  <form class="mt-3 flex gap-2"
+  <form class="mt-3 flex gap-2" id="webauthn-form"
         method="POST"
         action="{{ url_for('settings.webauthn_register') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input class="input flex-1" type="text" name="label"
+    <input class="input flex-1" id="webauthn-label" type="text" name="label"
            placeholder="Key name (e.g. YubiKey 5)" required>
     <button class="btn btn-primary" type="submit">Register</button>
   </form>
+  <p id="webauthn-status" class="mt-2 hidden text-xs text-slate-500"></p>
 </section>
+
+<script>
+// Progressive enhancement: if the browser exposes navigator.credentials.create,
+// run the real FIDO2 ceremony. Otherwise we fall back to the form POST that
+// records a stub credential — works in tests, headless deploys, and old browsers.
+(function() {
+  if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) {
+    return; // graceful fallback to stub form
+  }
+  function b64urlToBuf(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var raw = atob(s);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr.buffer;
+  }
+  function bufToB64url(b) {
+    var bytes = new Uint8Array(b);
+    var s = '';
+    for (var i = 0; i < bytes.byteLength; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function show(msg, ok) {
+    var $s = $('#webauthn-status');
+    $s.removeClass('hidden text-rose-600 text-emerald-700');
+    $s.addClass(ok === false ? 'text-rose-600' : 'text-emerald-700');
+    $s.text(msg);
+  }
+  $('#webauthn-form').on('submit', async function(e) {
+    e.preventDefault();
+    var label = $('#webauthn-label').val();
+    show('Awaiting your security key...');
+    try {
+      var beginResp = await fetch('{{ url_for("settings.webauthn_begin") }}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': $('meta[name=csrf-token]').attr('content')},
+      });
+      if (!beginResp.ok) throw new Error('begin failed');
+      var options = await beginResp.json();
+      options.challenge = b64urlToBuf(options.challenge);
+      options.user.id = b64urlToBuf(options.user.id);
+      if (options.excludeCredentials) {
+        options.excludeCredentials = options.excludeCredentials.map(function(c) {
+          return Object.assign({}, c, {id: b64urlToBuf(c.id)});
+        });
+      }
+      var cred = await navigator.credentials.create({publicKey: options});
+      var payload = {
+        label: label,
+        response: {
+          id: cred.id,
+          rawId: bufToB64url(cred.rawId),
+          type: cred.type,
+          response: {
+            clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+            attestationObject: bufToB64url(cred.response.attestationObject),
+          },
+        },
+      };
+      var done = await fetch('{{ url_for("settings.webauthn_complete") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': $('meta[name=csrf-token]').attr('content'),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!done.ok) {
+        var err = await done.json().catch(function(){ return {error: 'failed'}; });
+        throw new Error(err.error || 'failed');
+      }
+      show('Passkey registered. Reloading…');
+      setTimeout(function() { location.reload(); }, 600);
+    } catch (err) {
+      show('Could not register: ' + (err.message || err), false);
+    }
+  });
+})();
+</script>
 {% endif %}
 
 <section class="card">

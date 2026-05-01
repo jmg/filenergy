@@ -31,6 +31,13 @@ DIGEST_INTERVAL = timedelta(days=7)
 WINDOW = timedelta(days=7)
 
 
+class DigestSendFailed(Exception):
+    """Raised so the jobs-queue retry policy can re-run a digest send
+    (transient SMTP failure, rate limiting, etc.). The user's
+    `last_digest_sent_at` is only updated when send succeeds, so a
+    retried failure won't double-deliver."""
+
+
 def _stats_for(workspace, since):
     files_uploaded = (
         File.query.filter(
@@ -108,13 +115,18 @@ def users_due():
     return q.all()
 
 
-def send_pending() -> int:
-    """Send digests to every eligible user. Returns count of sends."""
+def send_pending(*, async_dispatch: bool = False) -> int:
+    """Send digests to every eligible user. Returns count of sends.
+
+    `async_dispatch=True` enqueues each per-user send as a background job
+    with retries (useful for large fanouts under SMTP rate limits). The
+    default sync path keeps the CLI's "X digests sent" count truthful.
+    """
+    if async_dispatch:
+        return _send_pending_async()
+
     sent = 0
     for user in users_due():
-        # Use the user's first workspace as the digest scope. We could
-        # batch all workspaces in one email, but per-workspace makes the
-        # subject line meaningful and keeps the body short.
         m = (
             WorkspaceMember.query.filter_by(user_id=user.id)
             .order_by(WorkspaceMember.id.asc())
@@ -141,3 +153,61 @@ def send_pending() -> int:
         )
         sent += 1
     return sent
+
+
+def _send_pending_async() -> int:
+    """Enqueue one job per eligible user. Returns enqueue count.
+
+    Each job runs `send_for_user(user_id)` with the standard 4-retry
+    backoff so transient SMTP failures recover automatically.
+    """
+    from filenergy.services import jobs
+
+    count = 0
+    for user in users_due():
+        jobs.enqueue(
+            "filenergy.services.digest.send_for_user",
+            user.id,
+            retries=4,
+            retry_backoff_seconds=2,
+        )
+        count += 1
+    return count
+
+
+def send_for_user(user_id: int) -> bool:
+    """Send the digest for one user. Designed to be re-runnable from the
+    jobs queue: idempotency comes from updating `last_digest_sent_at` only
+    on success, and from the eligibility check at the top.
+    """
+    user = User.query.get(user_id)
+    if user is None:
+        return False
+    cutoff = utcnow() - DIGEST_INTERVAL
+    if (
+        user.weekly_digest is False
+        or (user.last_digest_sent_at is not None and user.last_digest_sent_at >= cutoff)
+    ):
+        return False
+
+    m = (
+        WorkspaceMember.query.filter_by(user_id=user.id)
+        .order_by(WorkspaceMember.id.asc())
+        .first()
+    )
+    if m is None or m.workspace is None:
+        return False
+    rendered = build_digest(user, m.workspace)
+    if rendered is None:
+        return False
+    subject, body = rendered
+    if not email_service.send(to=user.email or "", subject=subject, body=body):
+        raise DigestSendFailed(f"send failed for {user.email}")
+
+    user.last_digest_sent_at = utcnow()
+    db.session.commit()
+    events_log.log_event(
+        events_log.USER_DIGEST_SENT,
+        user=user, workspace_id=m.workspace.id,
+    )
+    return True
