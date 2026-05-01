@@ -9,10 +9,6 @@
 
     <script type="text/javascript" src="/static/js/jquery.min.js"></script>
 
-    {# Use the compiled, minified Tailwind output when it has been built
-       (production / Docker image). Fall back to the Play CDN + inline
-       config so `flask run` works zero-config in dev. The CDN version
-       has `'unsafe-eval'` in CSP because it JIT-compiles in the browser. #}
     {% if css_bundle_built %}
       <link rel="stylesheet" href="/static/css/app.css">
     {% else %}
@@ -32,6 +28,14 @@
                   600: "#1d4ed8",
                   700: "#1e40af",
                 },
+              },
+              keyframes: {
+                shimmer: { "0%": {backgroundPosition: "-1000px 0"}, "100%": {backgroundPosition: "1000px 0"} },
+                slideUp: { "0%": {transform: "translateY(8px)", opacity: "0"}, "100%": {transform: "translateY(0)", opacity: "1"} },
+              },
+              animation: {
+                shimmer: "shimmer 1.4s linear infinite",
+                "slide-up": "slideUp .15s ease-out",
               },
             },
           },
@@ -56,12 +60,20 @@
           .table        { @apply w-full text-left text-sm; }
           .table th     { @apply border-b border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500; }
           .table td     { @apply border-b border-slate-100 px-3 py-2.5 align-middle; }
-          .nav-link     { @apply rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900; }
+          .nav-link     { @apply flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900; }
           .nav-link-active { @apply bg-slate-100 text-slate-900; }
-          .flash        { @apply mb-3 rounded-md border px-4 py-2 text-sm; }
+          .flash        { @apply mb-3 flex items-start gap-3 rounded-md border px-4 py-3 text-sm shadow-sm; }
           .flash-error  { @apply border-rose-200 bg-rose-50 text-rose-700; }
           .flash-success{ @apply border-emerald-200 bg-emerald-50 text-emerald-700; }
           .prose-thin p { @apply mb-2; }
+          .skeleton     { @apply rounded bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100 animate-shimmer; background-size: 1000px 100%; }
+          .kbd          { @apply rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs font-mono text-slate-600 shadow-sm; }
+          .toast        { @apply pointer-events-auto flex items-start gap-3 rounded-lg border bg-white px-4 py-3 text-sm shadow-lg animate-slide-up; }
+          .toast-error  { @apply border-rose-200 text-rose-700; }
+          .toast-success{ @apply border-emerald-200 text-emerald-700; }
+          .toast-info   { @apply border-slate-200 text-slate-700; }
+          .icon         { @apply h-4 w-4 flex-shrink-0; }
+          .icon-lg      { @apply h-5 w-5 flex-shrink-0; }
         }
       </style>
     {% endif %}
@@ -81,35 +93,84 @@
     </script>
 
     {% block css %}{% endblock %}
-    {% block js %}
-      <script type="text/javascript">
-        setTimeout(function() { $(".flash").fadeOut(); }, 4000);
-      </script>
-    {% endblock %}
   </head>
 
   <body class="flex min-h-full flex-col font-sans text-slate-900">
-    <header class="border-b border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-6">
-        <a href="/" class="flex items-center gap-2 text-slate-900">
-          <img src="/static/img/logo.png" alt="" class="h-7 w-7 rounded">
-          <span class="text-base font-semibold">Filenergy</span>
-        </a>
-        <nav class="hidden items-center gap-1 md:flex">
+
+    <svg class="hidden" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+        <symbol id="i-files"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+        <symbol id="i-chat"   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+        <symbol id="i-plug"   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6"/><path d="M15 2v6"/><path d="M5 8h14v3a7 7 0 0 1-14 0z"/><path d="M12 15v7"/></symbol>
+        <symbol id="i-chart"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+        <symbol id="i-cog"    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+        <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+        <symbol id="i-x"      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+        <symbol id="i-menu"   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+        <symbol id="i-check"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+        <symbol id="i-alert"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></symbol>
+        <symbol id="i-trash"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+        <symbol id="i-stop"   viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></symbol>
+        <symbol id="i-thumbs-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></symbol>
+        <symbol id="i-thumbs-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></symbol>
+        <symbol id="i-copy"   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+      </defs>
+    </svg>
+
+    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <div class="flex items-center gap-3">
           {% if g.user.is_authenticated %}
-            <a href="/file/upload/" class="nav-link {% if request.path.startswith('/file/upload') %}nav-link-active{% endif %}">Upload</a>
-            <a href="/file/list/" class="nav-link {% if request.path.startswith('/file/list') or request.endpoint == 'file.detail' %}nav-link-active{% endif %}">Files</a>
-            <a href="/collections/" class="nav-link {% if request.path.startswith('/collections') %}nav-link-active{% endif %}">Collections</a>
-            <a href="/ask/" class="nav-link {% if request.path.startswith('/ask') %}nav-link-active{% endif %}">Ask</a>
-            <a href="/connectors/" class="nav-link {% if request.path.startswith('/connectors') %}nav-link-active{% endif %}">Connectors</a>
-            <a href="/dashboard/" class="nav-link {% if request.path.startswith('/dashboard') %}nav-link-active{% endif %}">Dashboard</a>
-            <a href="/settings/" class="nav-link {% if request.path.startswith('/settings') or request.path.startswith('/audit') %}nav-link-active{% endif %}">Settings</a>
+          <button id="mobile-nav-toggle"
+                  class="btn-ghost rounded-md p-1.5 md:hidden"
+                  aria-label="Toggle navigation">
+            <svg class="icon-lg"><use href="#i-menu"/></svg>
+          </button>
+          {% endif %}
+          <a href="/" class="flex items-center gap-2 text-slate-900">
+            <img src="/static/img/logo.png" alt="" class="h-7 w-7 rounded">
+            <span class="text-base font-semibold">Filenergy</span>
+          </a>
+        </div>
+
+        <nav class="hidden items-center gap-0.5 md:flex">
+          {% if g.user.is_authenticated %}
+            <a href="/file/upload/" class="nav-link {% if request.path.startswith('/file/upload') %}nav-link-active{% endif %}">
+              <svg class="icon"><use href="#i-upload"/></svg>Upload
+            </a>
+            <a href="/file/list/" class="nav-link {% if request.path.startswith('/file/list') or request.endpoint == 'file.detail' %}nav-link-active{% endif %}">
+              <svg class="icon"><use href="#i-files"/></svg>Files
+            </a>
+            <a href="/collections/" class="nav-link {% if request.path.startswith('/collections') %}nav-link-active{% endif %}">
+              <svg class="icon"><use href="#i-folder"/></svg>Collections
+            </a>
+            <a href="/ask/" class="nav-link {% if request.path.startswith('/ask') %}nav-link-active{% endif %}">
+              <svg class="icon"><use href="#i-chat"/></svg>Ask
+            </a>
+            <a href="/connectors/" class="nav-link {% if request.path.startswith('/connectors') %}nav-link-active{% endif %}">
+              <svg class="icon"><use href="#i-plug"/></svg>Connectors
+            </a>
+            <a href="/dashboard/" class="nav-link {% if request.path.startswith('/dashboard') %}nav-link-active{% endif %}">
+              <svg class="icon"><use href="#i-chart"/></svg>Dashboard
+            </a>
+            <a href="/settings/" class="nav-link {% if request.path.startswith('/settings') or request.path.startswith('/audit') %}nav-link-active{% endif %}">
+              <svg class="icon"><use href="#i-cog"/></svg>Settings
+            </a>
           {% endif %}
         </nav>
+
         <div class="flex items-center gap-2">
           {% if g.user.is_authenticated %}
+            <button id="cmdk-trigger" class="hidden items-center gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 transition hover:bg-slate-100 lg:flex" title="Command palette">
+              <svg class="icon"><use href="#i-search"/></svg>
+              Search…
+              <span class="kbd">⌘K</span>
+            </button>
             {% if g.workspace %}
-              <span class="hidden text-sm text-slate-500 sm:inline">{{ g.workspace.name }}</span>
+              <span class="hidden text-sm text-slate-500 lg:inline">{{ g.workspace.name }}</span>
               <span class="pill {% if g.workspace.plan == 'pro' %}pill-brand{% elif g.workspace.plan == 'team' %}pill-warn{% endif %}">{{ g.workspace.plan or 'free' }}</span>
             {% endif %}
             <a href="/user/logout/" class="btn btn-ghost">Sign out</a>
@@ -119,18 +180,38 @@
           {% endif %}
         </div>
       </div>
+
+      {% if g.user.is_authenticated %}
+      <nav id="mobile-nav" class="hidden border-t border-slate-200 bg-white px-2 py-2 md:hidden">
+        <div class="flex flex-col gap-0.5">
+          <a href="/file/upload/" class="nav-link"><svg class="icon"><use href="#i-upload"/></svg>Upload</a>
+          <a href="/file/list/" class="nav-link"><svg class="icon"><use href="#i-files"/></svg>Files</a>
+          <a href="/collections/" class="nav-link"><svg class="icon"><use href="#i-folder"/></svg>Collections</a>
+          <a href="/ask/" class="nav-link"><svg class="icon"><use href="#i-chat"/></svg>Ask</a>
+          <a href="/connectors/" class="nav-link"><svg class="icon"><use href="#i-plug"/></svg>Connectors</a>
+          <a href="/dashboard/" class="nav-link"><svg class="icon"><use href="#i-chart"/></svg>Dashboard</a>
+          <a href="/settings/" class="nav-link"><svg class="icon"><use href="#i-cog"/></svg>Settings</a>
+        </div>
+      </nav>
+      {% endif %}
     </header>
 
     <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="mb-4">
-            {% for category, message in messages %}
-              <div class="flash {% if category == 'error' %}flash-error{% else %}flash-success{% endif %}">{{ message }}</div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
+      <div id="toast-container" class="pointer-events-none fixed inset-x-0 top-4 z-50 mx-auto flex max-w-md flex-col items-stretch gap-2 px-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="toast {% if category == 'error' %}toast-error{% else %}toast-success{% endif %}" role="status">
+              <svg class="icon-lg mt-0.5">
+                <use href="#{% if category == 'error' %}i-alert{% else %}i-check{% endif %}"/>
+              </svg>
+              <div class="flex-1">{{ message }}</div>
+              <button class="toast-close text-slate-400 hover:text-slate-700" aria-label="Dismiss">
+                <svg class="icon"><use href="#i-x"/></svg>
+              </button>
+            </div>
+          {% endfor %}
+        {% endwith %}
+      </div>
 
       {% block body %}{% endblock %}
       {% block content %}{% endblock %}
@@ -141,5 +222,122 @@
         Filenergy · self-hosted file vault with chat, citations, and connectors.
       </div>
     </footer>
+
+    <script>
+    $(function() {
+      $('#mobile-nav-toggle').on('click', function() {
+        $('#mobile-nav').toggleClass('hidden');
+      });
+
+      $('.toast').each(function() {
+        var $t = $(this);
+        if ($t.hasClass('toast-success')) {
+          setTimeout(function() { $t.fadeOut(200, function() { $(this).remove(); }); }, 5000);
+        }
+      });
+      $(document).on('click', '.toast-close', function() {
+        $(this).closest('.toast').fadeOut(150, function(){ $(this).remove(); });
+      });
+
+      window.fnToast = function(message, kind) {
+        kind = kind || 'info';
+        var icon = kind === 'error' ? 'i-alert' : kind === 'success' ? 'i-check' : 'i-alert';
+        var $t = $(
+          '<div class="toast toast-' + kind + '" role="status">' +
+            '<svg class="icon-lg mt-0.5"><use href="#' + icon + '"/></svg>' +
+            '<div class="flex-1"></div>' +
+            '<button class="toast-close text-slate-400 hover:text-slate-700">' +
+              '<svg class="icon"><use href="#i-x"/></svg>' +
+            '</button>' +
+          '</div>'
+        );
+        $t.find('.flex-1').text(message);
+        $('#toast-container').append($t);
+        if (kind === 'success' || kind === 'info') {
+          setTimeout(function() { $t.fadeOut(200, function(){ $(this).remove(); }); }, 5000);
+        }
+        return $t;
+      };
+
+      {% if g.user.is_authenticated %}
+      var $cmdk = null;
+      function openCmdK() {
+        if ($cmdk) { $cmdk.find('input').focus(); return; }
+        $cmdk = $(
+          '<div id="cmdk" class="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pt-24" role="dialog">' +
+            '<div class="w-full max-w-lg rounded-xl bg-white shadow-2xl animate-slide-up">' +
+              '<div class="flex items-center gap-2 border-b border-slate-200 px-3 py-2">' +
+                '<svg class="icon text-slate-400"><use href="#i-search"/></svg>' +
+                '<input type="text" autofocus class="flex-1 border-0 px-2 py-2 text-sm focus:ring-0 focus:outline-none" placeholder="Type a command or jump to a page..." />' +
+                '<span class="kbd">esc</span>' +
+              '</div>' +
+              '<ul class="cmdk-results max-h-80 overflow-y-auto py-1 text-sm"></ul>' +
+            '</div>' +
+          '</div>'
+        );
+        $('body').append($cmdk);
+        var commands = [
+          {label: 'Go to Ask',         href: '/ask/',         icon: 'i-chat'},
+          {label: 'Upload files',      href: '/file/upload/', icon: 'i-upload'},
+          {label: 'Browse files',      href: '/file/list/',   icon: 'i-files'},
+          {label: 'Collections',       href: '/collections/', icon: 'i-folder'},
+          {label: 'Connectors',        href: '/connectors/',  icon: 'i-plug'},
+          {label: 'Dashboard',         href: '/dashboard/',   icon: 'i-chart'},
+          {label: 'Settings: profile', href: '/settings/profile',   icon: 'i-cog'},
+          {label: 'Settings: security',href: '/settings/security',  icon: 'i-cog'},
+          {label: 'Settings: workspace', href: '/settings/workspace', icon: 'i-cog'},
+          {label: 'Audit log',         href: '/audit/',       icon: 'i-files'},
+          {label: 'Sign out',          href: '/user/logout/', icon: 'i-x'},
+        ];
+        function render(filter) {
+          filter = (filter || '').toLowerCase().trim();
+          var matches = filter
+            ? commands.filter(function(c){ return c.label.toLowerCase().indexOf(filter) >= 0; })
+            : commands;
+          var $ul = $cmdk.find('.cmdk-results').empty();
+          if (!matches.length) {
+            $ul.append('<li class="px-4 py-3 text-slate-500">No matches.</li>');
+            return;
+          }
+          matches.forEach(function(c, i) {
+            var $li = $(
+              '<li>' +
+                '<a href="' + c.href + '" class="flex items-center gap-3 px-4 py-2 ' + (i === 0 ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-50') + '">' +
+                  '<svg class="icon"><use href="#' + c.icon + '"/></svg>' +
+                  '<span>' + c.label + '</span>' +
+                '</a>' +
+              '</li>'
+            );
+            $ul.append($li);
+          });
+        }
+        render('');
+        $cmdk.find('input').on('input', function() { render($(this).val()); }).focus();
+        $cmdk.find('input').on('keydown', function(e) {
+          if (e.key === 'Enter') {
+            var first = $cmdk.find('.cmdk-results a').first();
+            if (first.length) { location.href = first.attr('href'); }
+          }
+        });
+        $cmdk.on('click', function(e) { if (e.target === this) closeCmdK(); });
+      }
+      function closeCmdK() { if ($cmdk) { $cmdk.remove(); $cmdk = null; } }
+      $('#cmdk-trigger').on('click', openCmdK);
+      $(document).on('keydown', function(e) {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          openCmdK();
+        } else if (e.key === 'Escape' && $cmdk) {
+          closeCmdK();
+        } else if (e.key === '/' && $(e.target).is('body')) {
+          e.preventDefault();
+          openCmdK();
+        }
+      });
+      {% endif %}
+    });
+    </script>
+
+    {% block js %}{% endblock %}
   </body>
 </html>

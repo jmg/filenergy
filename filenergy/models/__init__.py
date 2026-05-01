@@ -352,6 +352,27 @@ class Message(BaseModel):
     )
 
 
+class MessageFeedback(BaseModel):
+    """Per-user thumbs up/down on an assistant message.
+
+    One row per (message, user); re-clicking the same button flips the
+    rating in place. Reads back into the dashboard as the eval signal.
+    """
+
+    __tablename__ = "message_feedback"
+    __table_args__ = (
+        db.UniqueConstraint("message_id", "user_id", name="uq_message_feedback"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(
+        db.Integer, db.ForeignKey("message.id"), index=True
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
+    rating = db.Column(db.String(8))  # 'up' / 'down'
+    note = db.Column(db.Text, nullable=True)
+
+
 class MessageCitation(BaseModel):
     """One assistant turn → one cited chunk + the retrieval score.
 

@@ -53,6 +53,7 @@ ASK_ANSWERED = "ask.answered"
 ASK_RATE_LIMITED = "ask.rate_limited"
 ASK_FAILED = "ask.failed"
 ASK_QUOTA_EXCEEDED = "ask.quota_exceeded"
+ASK_FEEDBACK = "ask.feedback"
 UPLOAD_QUOTA_EXCEEDED = "upload.quota_exceeded"
 
 CONVERSATION_CREATED = "conversation.created"

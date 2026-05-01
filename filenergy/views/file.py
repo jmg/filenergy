@@ -201,7 +201,11 @@ def delete():
 @file_bp.route("/bulk_delete/", methods=["POST"])
 @login_required
 def bulk_delete():
+    # Accept both form-encoded (legacy) and JSON (UI multi-select).
     raw_ids = request.form.getlist("ids[]") or request.form.getlist("ids")
+    if not raw_ids:
+        body = request.get_json(silent=True) or {}
+        raw_ids = body.get("ids") or []
     ids: list[int] = []
     for x in raw_ids:
         try:

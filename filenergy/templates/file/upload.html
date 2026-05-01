@@ -1,15 +1,5 @@
 {% extends "base.html" %}
 
-{% block css %}
-<link rel="stylesheet" href="/static/css/jquery.fileupload-ui.css">
-<style>
-  /* Container glue for the legacy fileupload widget */
-  #files p { margin: 6px 0; font-size: 14px; }
-  #progress { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin: 12px 0; }
-  #progress .bar { height: 100%; background: #4f7fdc; width: 0; transition: width .15s linear; }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="card">
   <h2 class="text-xl font-semibold">Upload files</h2>
@@ -18,16 +8,28 @@
     index it for retrieval.
   </p>
 
-  <div class="mt-4">
-    <span class="btn btn-primary fileinput-button">
-      <span>Add files…</span>
-      <input id="fileupload" type="file" name="files[]" multiple
-             class="absolute inset-0 cursor-pointer opacity-0">
-    </span>
+  <div id="dropzone"
+       class="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-brand-500 hover:bg-brand-50">
+    <div class="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-brand-500 shadow">
+      <svg class="icon-lg"><use href="#i-upload"/></svg>
+    </div>
+    <p class="text-sm font-medium text-slate-700">
+      Click to choose files, or drag &amp; drop here
+    </p>
+    <p class="mt-1 text-xs text-slate-500">
+      PDF, DOCX, MD, TXT, CSV, HTML, PNG/JPG, MP3/WAV — up to 10 MB each.
+    </p>
+    <input id="fileinput" type="file" name="files[]" multiple class="hidden">
   </div>
 
-  <div id="progress"><div class="bar"></div></div>
-  <div id="files" class="files"></div>
+  <div id="progress" class="mt-4 hidden">
+    <div class="h-2 overflow-hidden rounded bg-slate-200">
+      <div id="progress-bar" class="h-full bg-brand-500 transition-all" style="width: 0"></div>
+    </div>
+    <p id="progress-label" class="mt-1 text-xs text-slate-500"></p>
+  </div>
+
+  <ul id="upload-list" class="mt-4 divide-y divide-slate-100"></ul>
 
   <hr class="my-6 border-slate-200">
 
@@ -49,86 +51,115 @@ function ingestUrl() {
   var url = $input.val().trim();
   if (!url) return;
   $status.removeClass('text-rose-600').text('Fetching...');
-  $.ajax({
-    url: '/file/from_url/',
-    method: 'POST',
-    data: { url: url },
-  }).done(function(resp) {
-    $status.html('Saved as <a class="text-brand-600 hover:underline" href="/file/' + resp.file_id + '">' + resp.name + '</a>');
-    $input.val('');
-  }).fail(function(xhr) {
-    var msg = (xhr.responseJSON && xhr.responseJSON.error) || 'Failed.';
-    $status.addClass('text-rose-600').text(msg);
-  });
+  $.ajax({url: '/file/from_url/', method: 'POST', data: {url: url}})
+    .done(function(resp) {
+      $status.html('Saved as <a class="text-brand-600 hover:underline" href="/file/' + resp.file_id + '">' + resp.name + '</a>');
+      $input.val('');
+    })
+    .fail(function(xhr) {
+      var msg = (xhr.responseJSON && xhr.responseJSON.error) || 'Failed.';
+      $status.addClass('text-rose-600').text(msg);
+    });
 }
-</script>
 
-<script src="/static/js/vendor/jquery.ui.widget.js"></script>
-<script src="/static/js/load-image.min.js"></script>
-<script src="/static/js/canvas-to-blob.min.js"></script>
-<script src="/static/js/jquery.iframe-transport.js"></script>
-<script src="/static/js/jquery.fileupload.js"></script>
-<script src="/static/js/jquery.fileupload-process.js"></script>
-<script src="/static/js/jquery.fileupload-image.js"></script>
-<script src="/static/js/jquery.fileupload-audio.js"></script>
-<script src="/static/js/jquery.fileupload-video.js"></script>
-<script src="/static/js/jquery.fileupload-validate.js"></script>
-<script src="/static/js/jquery.cookie.js"></script>
-<script>
-$(function () {
-  'use strict';
+(function() {
+  var $dz = $('#dropzone');
+  var $input = $('#fileinput');
+  var $list = $('#upload-list');
+  var $progress = $('#progress');
+  var $bar = $('#progress-bar');
+  var $label = $('#progress-label');
 
-  var uploadButton = $('<button/>')
-    .addClass('btn btn-primary ml-2')
-    .prop('disabled', true)
-    .text('Processing...')
-    .on('click', function () {
-      var $this = $(this), data = $this.data();
-      $this.off('click').text('Abort').on('click', function () {
-        $this.remove(); data.abort();
-      });
-      data.submit().always(function () { $this.remove(); });
-    });
+  $dz.on('click', function() { $input.trigger('click'); });
 
-  $('#fileupload').fileupload({
-    url: '/file/upload/',
-    crossDomain: false,
-    dataType: 'json',
-    autoUpload: false,
-    maxFileSize: 10000000,
-    disableImageResize: /Android(?!.*Chrome)|Opera/.test(window.navigator.userAgent),
-    previewMaxWidth: 80,
-    previewMaxHeight: 80,
-    previewCrop: true
-  }).on('fileuploadadd', function (e, data) {
-    data.context = $('<div/>').appendTo('#files');
-    $.each(data.files, function (index, file) {
-      var node = $('<p/>').append($('<span/>').addClass('font-medium').text(file.name));
-      if (!index) { node.append(uploadButton.clone(true).data(data)); }
-      node.appendTo(data.context);
-    });
-  }).on('fileuploadprocessalways', function (e, data) {
-    var index = data.index, file = data.files[index],
-        node = $(data.context.children()[index]);
-    if (file.preview) { node.prepend(file.preview); }
-    if (file.error) { node.append(' — ').append($('<span class="text-rose-600"/>').text(file.error)); }
-    if (index + 1 === data.files.length) {
-      data.context.find('button').text('Upload').prop('disabled', !!data.files.error);
-    }
-  }).on('fileuploadprogressall', function (e, data) {
-    var progress = parseInt(data.loaded / data.total * 100, 10);
-    $('#progress .bar').css('width', progress + '%');
-  }).on('fileuploaddone', function (e, data) {
-    $.each(data.result, function (index, file) {
-      var link = $('<a class="text-brand-600 hover:underline">').prop('href', "/file/download/?h=" + file.url);
-      $(data.context.children()[index]).wrap(link);
-    });
-  }).on('fileuploadfail', function (e, data) {
-    $.each(data.result.files, function (index, file) {
-      $(data.context.children()[index]).append(' — ')
-        .append($('<span class="text-rose-600"/>').text(file.error));
+  ['dragenter', 'dragover'].forEach(function(ev) {
+    $dz.on(ev, function(e) {
+      e.preventDefault(); e.stopPropagation();
+      $dz.addClass('border-brand-500 bg-brand-50');
     });
   });
-});
+  ['dragleave', 'drop'].forEach(function(ev) {
+    $dz.on(ev, function(e) {
+      e.preventDefault(); e.stopPropagation();
+      $dz.removeClass('border-brand-500 bg-brand-50');
+    });
+  });
+  $dz.on('drop', function(e) {
+    var files = e.originalEvent.dataTransfer.files;
+    handleFiles(files);
+  });
+  $input.on('change', function() { handleFiles(this.files); $input.val(''); });
+
+  $(document).on('dragover drop', function(e) { e.preventDefault(); });
+
+  function handleFiles(files) {
+    if (!files || !files.length) return;
+    var queue = Array.from(files);
+    queue.forEach(function(file, i) { uploadOne(file, i, queue.length); });
+  }
+
+  function uploadOne(file, idx, total) {
+    var $row = $(
+      '<li class="flex items-center gap-3 py-2">' +
+        '<div class="min-w-0 flex-1">' +
+          '<div class="truncate text-sm font-medium upload-name"></div>' +
+          '<div class="upload-status text-xs text-slate-500">Queued…</div>' +
+        '</div>' +
+        '<div class="upload-action"></div>' +
+      '</li>'
+    );
+    $row.find('.upload-name').text(file.name);
+    $list.append($row);
+
+    var fd = new FormData();
+    fd.append('files[]', file);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/file/upload/');
+
+    if (xhr.upload) {
+      xhr.upload.addEventListener('progress', function(e) {
+        if (!e.lengthComputable) return;
+        var pct = Math.round(e.loaded / e.total * 100);
+        $row.find('.upload-status').text(pct + '%');
+        if (idx === total - 1) {
+          $progress.removeClass('hidden');
+          $bar.css('width', pct + '%');
+          $label.text('Uploading ' + (idx + 1) + ' of ' + total + '…');
+        }
+      });
+    }
+    var token = $('meta[name=csrf-token]').attr('content');
+    xhr.setRequestHeader('X-CSRFToken', token);
+    xhr.onload = function() {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          var f = (resp && resp[0]) || {};
+          $row.find('.upload-status').html(
+            '<span class="text-emerald-600">Uploaded</span> · indexing'
+          );
+          $row.find('.upload-action').html(
+            '<a class="text-xs text-brand-600 hover:underline" href="/file/download/?h=' + encodeURIComponent(f.url) + '">View</a>'
+          );
+        } catch (e) {
+          $row.find('.upload-status').addClass('text-rose-600').text('Bad server response');
+        }
+      } else {
+        $row.find('.upload-status').empty()
+          .append($('<span class="text-rose-600">Upload failed</span>'))
+          .append(' ')
+          .append($('<button type="button" class="text-xs text-brand-600 hover:underline">Retry</button>')
+            .on('click', function(){ $row.remove(); uploadOne(file, idx, total); }));
+      }
+      if (idx === total - 1) {
+        setTimeout(function() { $progress.addClass('hidden'); $bar.css('width', 0); }, 600);
+      }
+    };
+    xhr.onerror = function() {
+      $row.find('.upload-status').addClass('text-rose-600').text('Network error');
+    };
+    xhr.send(fd);
+  }
+})();
 </script>
 {% endblock %}
