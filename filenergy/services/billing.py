@@ -44,13 +44,19 @@ def storage_used_bytes(workspace: Workspace) -> int:
     total = (
         db.session.query(db.func.coalesce(db.func.sum(File.size_bytes), 0))
         .filter(File.workspace_id == workspace.id)
+        .filter(File.deleted_at.is_(None))
         .scalar()
     )
     return int(total or 0)
 
 
 def files_count(workspace: Workspace) -> int:
-    return File.query.filter_by(workspace_id=workspace.id).count()
+    return (
+        File.query
+        .filter_by(workspace_id=workspace.id)
+        .filter(File.deleted_at.is_(None))
+        .count()
+    )
 
 
 def asks_this_month(workspace: Workspace) -> int:

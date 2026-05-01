@@ -396,6 +396,42 @@ def rename_conversation(conversation_id):
     return jsonify(ok=True, title=conv.title)
 
 
+@ask_bp.route("/c/<int:conversation_id>/pin", methods=["POST"])
+@login_required
+def pin_conversation(conversation_id):
+    """Toggle pin state. Pinned conversations float to the top of the
+    sidebar so users keep their long-running threads at hand."""
+    from filenergy import db
+    from filenergy.models import Conversation, utcnow
+
+    conv = Conversation.query.filter_by(
+        id=conversation_id, user_id=g.user.id, workspace_id=g.workspace.id,
+    ).first()
+    if conv is None:
+        return jsonify(error="Not found"), 404
+    conv.pinned_at = None if conv.pinned_at else utcnow()
+    db.session.commit()
+    return jsonify(ok=True, pinned=conv.pinned_at is not None)
+
+
+@ask_bp.route("/c/<int:conversation_id>/archive", methods=["POST"])
+@login_required
+def archive_conversation(conversation_id):
+    """Toggle archive state. Archived threads are hidden from the
+    sidebar but kept in the DB for export + audit."""
+    from filenergy import db
+    from filenergy.models import Conversation, utcnow
+
+    conv = Conversation.query.filter_by(
+        id=conversation_id, user_id=g.user.id, workspace_id=g.workspace.id,
+    ).first()
+    if conv is None:
+        return jsonify(error="Not found"), 404
+    conv.archived_at = None if conv.archived_at else utcnow()
+    db.session.commit()
+    return jsonify(ok=True, archived=conv.archived_at is not None)
+
+
 @ask_bp.route("/feedback", methods=["POST"])
 @login_required
 def feedback():

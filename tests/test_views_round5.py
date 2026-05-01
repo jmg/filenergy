@@ -337,7 +337,18 @@ def test_bulk_delete(auth_client, db, user, workspace):
     )
     assert r.status_code == 200
     assert r.get_json()["deleted"] == 2
-    assert File.query.filter_by(workspace_id=workspace.id).count() == 1
+    # Soft-deleted: rows exist but `deleted_at` is set; only one
+    # remains "active" (deleted_at IS NULL).
+    active = (
+        File.query.filter_by(workspace_id=workspace.id)
+        .filter(File.deleted_at.is_(None)).count()
+    )
+    assert active == 1
+    soft_deleted = (
+        File.query.filter_by(workspace_id=workspace.id)
+        .filter(File.deleted_at.isnot(None)).count()
+    )
+    assert soft_deleted == 2
 
 
 def test_bulk_delete_empty_request(auth_client):

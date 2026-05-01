@@ -3,7 +3,12 @@
 {% block content %}
 <div class="mx-auto max-w-3xl space-y-6">
   <div class="card">
-    <h2 class="text-xl font-semibold">{{ file.name }}</h2>
+    <div class="flex items-start gap-2">
+      <input id="file-name-input" type="text"
+             class="min-w-0 flex-1 border-0 bg-transparent px-1 py-0 text-xl font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:rounded"
+             value="{{ file.name }}">
+      <span id="file-name-status" class="mt-2 text-xs text-slate-400"></span>
+    </div>
     <p class="mt-1 text-sm text-slate-500">
       {{ "%.1f"|format((file.size_bytes or 0) / 1024) }} KB ·
       uploaded {{ file.created_at.strftime('%Y-%m-%d') if file.created_at else '' }} ·
@@ -95,4 +100,25 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+$('#file-name-input').on('blur', function() {
+  var newName = $(this).val().trim();
+  if (!newName || newName === '{{ file.name|e }}') return;
+  $('#file-name-status').text('Saving…').removeClass('text-rose-600 text-emerald-600');
+  $.ajax({
+    url: '/file/{{ file.id }}/rename', method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({name: newName}),
+  }).done(function() {
+    $('#file-name-status').text('Saved').addClass('text-emerald-600');
+    setTimeout(function(){ $('#file-name-status').text(''); }, 1500);
+  }).fail(function() {
+    $('#file-name-status').text('Error').addClass('text-rose-600');
+  });
+}).on('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); $(this).blur(); }
+  if (e.key === 'Escape') { $(this).val('{{ file.name|e }}'); $(this).blur(); }
+});
+</script>
 {% endblock %}

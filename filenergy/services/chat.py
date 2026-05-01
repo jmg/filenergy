@@ -141,10 +141,21 @@ def _build_messages(
 def _retrieve(workspace, question: str, *,
               collection_id: int | None = None,
               file_id: int | None = None):
-    return embeddings.search(
-        workspace, question, settings.RETRIEVAL_K,
+    """Two-stage retrieval: embedding recall, then optional LLM rerank.
+
+    We pull a wider candidate set than RETRIEVAL_K (so the reranker has
+    something to choose from), then let `reranker.rerank` cut down to
+    the final top-K by precision. When the reranker is disabled, the
+    raw embedding ranking is used.
+    """
+    from filenergy.services import reranker
+
+    candidate_k = max(settings.RETRIEVAL_K, 12) if reranker.is_enabled() else settings.RETRIEVAL_K
+    candidates = embeddings.search(
+        workspace, question, candidate_k,
         collection_id=collection_id, file_id=file_id,
     )
+    return reranker.rerank(question, candidates)
 
 
 def _no_results_message() -> str:

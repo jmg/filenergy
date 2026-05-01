@@ -80,6 +80,7 @@ def search(
     q = (
         Chunk.query.join(File, Chunk.file_id == File.id)
         .filter(File.workspace_id == workspace.id)
+        .filter(File.deleted_at.is_(None))
         .filter(Chunk.embedding.isnot(None))
     )
     if file_id is not None:

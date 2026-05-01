@@ -165,6 +165,31 @@ def materialize_blob(
     return db_file
 
 
+def ingest_text(
+    *, user, workspace, name: str, content_bytes: bytes,
+    source: str = "ingestion",
+    sync_index: bool | None = None,
+) -> File:
+    """Persist arbitrary bytes as a new File and index it asynchronously.
+
+    Used by the email-to-ingest endpoint and the URL fetcher to push
+    content into the library through the same code path as a manual
+    upload.
+    """
+    from filenergy.services.file import FileService
+
+    f = materialize_blob(
+        user=user, workspace=workspace, name=name, content=content_bytes,
+    )
+    if sync_index is None:
+        sync_index = settings.SYNC_INDEXING or app.config.get("TESTING", False)
+    if sync_index:
+        FileService().index_file(f)
+    else:
+        _async_index(f.id)
+    return f
+
+
 def ingest_url(*, user, workspace, url: str, sync_index: bool | None = None) -> File:
     """End-to-end: fetch a URL, persist it, kick off indexing."""
     name, text, raw = fetch_url(url)

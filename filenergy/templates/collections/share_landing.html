@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ collection.name }} · Filenergy{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl">
+  <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+    Read-only shared collection. Viewed {{ link.view_count or 0 }} time{{ '' if link.view_count == 1 else 's' }}.
+    {% if link.expires_at %}
+      Link expires {{ link.expires_at.strftime('%Y-%m-%d %H:%M UTC') }}.
+    {% endif %}
+  </div>
+
+  <div class="card mt-4">
+    <h2 class="text-2xl font-semibold">{{ collection.name }}</h2>
+    {% if collection.description %}
+      <p class="mt-1 text-sm text-slate-600">{{ collection.description }}</p>
+    {% endif %}
+    <p class="mt-2 text-xs text-slate-500">
+      {{ files|length }} file{{ '' if files|length == 1 else 's' }}
+    </p>
+  </div>
+
+  <div class="card mt-4">
+    {% if files %}
+      <ul class="divide-y divide-slate-100">
+        {% for f in files %}
+          <li class="flex items-center justify-between py-2 text-sm">
+            <a class="text-brand-600 hover:underline"
+               href="/file/download/?h={{ f.url }}">{{ f.name }}</a>
+            <span class="text-xs text-slate-500">
+              {{ "%.1f"|format((f.size_bytes or 0) / 1024) }} KB · {{ f.index_status }}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="py-6 text-center text-sm text-slate-500">No files in this collection.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
