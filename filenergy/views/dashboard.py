@@ -20,6 +20,7 @@ from filenergy.models import (
     File,
     Message,
     MessageCitation,
+    MessageFeedback,
     WorkspaceMember,
     utcnow,
 )
@@ -116,4 +117,76 @@ def index():
         top_files=top_files,
         top_chunks=top_chunks,
         usage=billing.usage_summary(g.workspace),
+    )
+
+
+@dashboard_bp.route("/evals")
+@login_required
+def evals():
+    """Quality dashboard: how often users thumbs-up assistant answers,
+    which low-rated answers regressed lately, who's giving feedback.
+    """
+    if not workspaces.require_role(g.workspace, g.user, "owner", "admin"):
+        return "Forbidden", 403
+
+    ws_id = g.workspace.id
+
+    # All feedback rows for this workspace (join through Message → Conversation).
+    fb_q = (
+        db.session.query(MessageFeedback)
+        .join(Message, MessageFeedback.message_id == Message.id)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .filter(Conversation.workspace_id == ws_id)
+    )
+    total = fb_q.count()
+    ups = fb_q.filter(MessageFeedback.rating == "up").count()
+    downs = fb_q.filter(MessageFeedback.rating == "down").count()
+    ratio = (ups / total) if total else 0.0
+
+    # Daily up/down counts for the last 30 days.
+    today = utcnow().date()
+    start = today - timedelta(days=29)
+    daily_rows = (
+        db.session.query(
+            func.date(MessageFeedback.created_at),
+            MessageFeedback.rating,
+            func.count(MessageFeedback.id),
+        )
+        .join(Message, MessageFeedback.message_id == Message.id)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .filter(
+            Conversation.workspace_id == ws_id,
+            MessageFeedback.created_at >= start,
+        )
+        .group_by(func.date(MessageFeedback.created_at), MessageFeedback.rating)
+        .all()
+    )
+    daily: dict[str, dict[str, int]] = {}
+    for d, rating, n in daily_rows:
+        daily.setdefault(str(d), {"up": 0, "down": 0})[rating] = n
+    timeseries = []
+    for i in range(30):
+        d = str(start + timedelta(days=i))
+        row = daily.get(d, {"up": 0, "down": 0})
+        timeseries.append({"date": d, "up": row.get("up", 0), "down": row.get("down", 0)})
+
+    # 25 most-recent thumbs-down answers — the queue an owner triages.
+    recent_downs = (
+        db.session.query(MessageFeedback, Message, Conversation)
+        .join(Message, MessageFeedback.message_id == Message.id)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .filter(
+            Conversation.workspace_id == ws_id,
+            MessageFeedback.rating == "down",
+        )
+        .order_by(MessageFeedback.id.desc())
+        .limit(25)
+        .all()
+    )
+
+    return render_template(
+        "dashboard/evals.html",
+        total=total, ups=ups, downs=downs, ratio=ratio,
+        timeseries=timeseries,
+        recent_downs=recent_downs,
     )

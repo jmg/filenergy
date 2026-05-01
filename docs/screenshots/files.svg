@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="ui-sans-serif, system-ui, sans-serif">
+  <rect width="960" height="540" fill="#f8fafc"/>
+
+  <!-- Top nav (compact) -->
+  <rect x="0" y="0" width="960" height="56" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="20" y="18" width="20" height="20" rx="4" fill="#2563eb"/>
+  <text x="48" y="32" font-size="14" font-weight="600" fill="#0f172a">Filenergy</text>
+  <text x="220" y="32" font-size="13" fill="#64748b">Ask</text>
+  <text x="280" y="32" font-size="13" fill="#0f172a" font-weight="500">Files</text>
+  <text x="330" y="32" font-size="13" fill="#64748b">Collections</text>
+
+  <!-- Card -->
+  <rect x="40" y="92" width="880" height="420" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+
+  <!-- Header row -->
+  <text x="64" y="128" font-size="18" font-weight="600" fill="#0f172a">My files</text>
+  <rect x="600" y="108" width="220" height="32" rx="6" fill="none" stroke="#e2e8f0"/>
+  <text x="624" y="128" font-size="12" fill="#94a3b8">Filter by name…</text>
+  <rect x="836" y="108" width="80" height="32" rx="6" fill="#2563eb"/>
+  <text x="856" y="128" font-size="13" font-weight="500" fill="#ffffff">Upload</text>
+
+  <!-- Bulk bar -->
+  <rect x="64" y="156" width="832" height="36" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="80" y="178" font-size="13" fill="#1e40af">3 files selected</text>
+  <rect x="640" y="162" width="80" height="24" rx="4" fill="#ffffff" stroke="#bfdbfe"/>
+  <text x="660" y="178" font-size="11" fill="#1e40af">Reindex</text>
+  <rect x="728" y="162" width="80" height="24" rx="4" fill="#ffffff" stroke="#fecaca"/>
+  <text x="752" y="178" font-size="11" fill="#dc2626">Delete</text>
+  <rect x="816" y="162" width="64" height="24" rx="4" fill="none"/>
+  <text x="832" y="178" font-size="11" fill="#1e40af">Clear</text>
+
+  <!-- Table header -->
+  <rect x="64" y="206" width="832" height="36" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="92" y="228" font-size="11" font-weight="600" letter-spacing="1" fill="#64748b">NAME</text>
+  <text x="540" y="228" font-size="11" font-weight="600" letter-spacing="1" fill="#64748b">STATUS</text>
+  <text x="660" y="228" font-size="11" font-weight="600" letter-spacing="1" fill="#64748b">SIZE</text>
+  <text x="828" y="228" font-size="11" font-weight="600" letter-spacing="1" fill="#64748b">ACTIONS</text>
+
+  <!-- Rows -->
+  <g font-size="13" fill="#0f172a">
+    <rect x="64" y="242" width="832" height="44" fill="#ffffff" stroke="#f1f5f9"/>
+    <rect x="80" y="258" width="14" height="14" rx="3" fill="#2563eb"/>
+    <text x="116" y="269" fill="#1e40af" font-weight="500">Acme MSA — 2026.pdf</text>
+    <rect x="540" y="260" width="62" height="20" rx="999" fill="#d1fae5"/>
+    <text x="554" y="274" font-size="10" fill="#047857" font-weight="500">indexed</text>
+    <text x="660" y="269" fill="#64748b" font-size="11">428 KB</text>
+
+    <rect x="64" y="286" width="832" height="44" fill="#ffffff" stroke="#f1f5f9"/>
+    <rect x="80" y="302" width="14" height="14" rx="3" fill="#2563eb"/>
+    <text x="116" y="313" fill="#1e40af" font-weight="500">RFP-Acme.docx</text>
+    <rect x="540" y="304" width="62" height="20" rx="999" fill="#d1fae5"/>
+    <text x="554" y="318" font-size="10" fill="#047857" font-weight="500">indexed</text>
+    <text x="660" y="313" fill="#64748b" font-size="11">112 KB</text>
+
+    <rect x="64" y="330" width="832" height="44" fill="#ffffff" stroke="#f1f5f9"/>
+    <rect x="80" y="346" width="14" height="14" rx="3" fill="#2563eb"/>
+    <text x="116" y="357" fill="#1e40af" font-weight="500">Q4-OKRs.md</text>
+    <rect x="540" y="348" width="62" height="20" rx="999" fill="#fef3c7"/>
+    <text x="556" y="362" font-size="10" fill="#92400e" font-weight="500">pending</text>
+    <text x="660" y="357" fill="#64748b" font-size="11">8 KB</text>
+
+    <rect x="64" y="374" width="832" height="44" fill="#ffffff" stroke="#f1f5f9"/>
+    <rect x="80" y="390" width="14" height="14" rx="3" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="116" y="401" fill="#1e40af" font-weight="500">customer-interviews-week-31.csv</text>
+    <rect x="540" y="392" width="62" height="20" rx="999" fill="#d1fae5"/>
+    <text x="554" y="406" font-size="10" fill="#047857" font-weight="500">indexed</text>
+    <text x="660" y="401" fill="#64748b" font-size="11">62 KB</text>
+
+    <rect x="64" y="418" width="832" height="44" fill="#ffffff" stroke="#f1f5f9"/>
+    <rect x="80" y="434" width="14" height="14" rx="3" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="116" y="445" fill="#1e40af" font-weight="500">vendor-x-master-2024.pdf</text>
+    <rect x="540" y="436" width="62" height="20" rx="999" fill="#fee2e2"/>
+    <text x="558" y="450" font-size="10" fill="#b91c1c" font-weight="500">error</text>
+    <text x="660" y="445" fill="#64748b" font-size="11">1.4 MB</text>
+  </g>
+</svg>

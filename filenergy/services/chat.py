@@ -93,19 +93,48 @@ def _build_context(retrieved):
     )
 
 
-def _build_messages(conversation_messages, context: str, question: str) -> list[dict]:
+def _build_messages(
+    conversation_messages, context: str, question: str,
+    *, images: list[dict] | None = None,
+) -> list[dict]:
     """Compose the prior turns + this turn into Anthropic messages.
 
     Prior turns are included verbatim; the new turn is prefixed with the
     retrieved context for RAG grounding.
+
+    `images` is an optional list of `{"media_type": "image/png",
+    "data": "<base64>"}` dicts that get prepended to the new turn's
+    content as Claude `image` blocks. Vision turns the chat into a
+    "look at this screenshot and reason against my docs" experience.
     """
     messages: list[dict] = []
     for m in conversation_messages or []:
         messages.append({"role": m.role, "content": m.content})
-    messages.append({
-        "role": "user",
-        "content": f"{context}\n\n<question>{question}</question>",
-    })
+
+    text_block = {
+        "type": "text",
+        "text": f"{context}\n\n<question>{question}</question>",
+    }
+    if images:
+        content: list[dict] = []
+        for img in images:
+            content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": img["media_type"],
+                    "data": img["data"],
+                },
+            })
+        content.append(text_block)
+        messages.append({"role": "user", "content": content})
+    else:
+        # Plain text — keep the legacy string shape so existing tests
+        # / API clients see no behaviour change.
+        messages.append({
+            "role": "user",
+            "content": text_block["text"],
+        })
     return messages
 
 
@@ -128,15 +157,16 @@ def _no_results_message() -> str:
 def answer_question(
     workspace, question: str, history: Iterable[Message] = (),
     *, collection_id: int | None = None, file_id: int | None = None,
+    images: list[dict] | None = None,
 ) -> Answer:
     retrieved = _retrieve(
         workspace, question, collection_id=collection_id, file_id=file_id
     )
-    if not retrieved:
+    if not retrieved and not images:
         return Answer(text=_no_results_message(), sources=[], chunk_citations=[])
 
     context, sources, chunk_citations = _build_context(retrieved)
-    messages = _build_messages(list(history), context, question)
+    messages = _build_messages(list(history), context, question, images=images)
 
     with _client().messages.stream(
         model=settings.CLAUDE_MODEL,
@@ -171,6 +201,7 @@ def _sse(event: str, data) -> str:
 def stream_answer(
     workspace, question: str, history: Iterable[Message] = (),
     *, collection_id: int | None = None, file_id: int | None = None,
+    images: list[dict] | None = None,
 ) -> Iterable[str]:
     """Yield SSE-formatted strings for an EventSource consumer.
 
@@ -178,6 +209,9 @@ def stream_answer(
         - token: incremental text delta ({"text": "..."})
         - done:  final payload ({"text": "...", "sources": [...]})
         - error: ({"message": "..."})
+
+    `images` is an optional list of base64'd image dicts; when provided
+    Claude gets a vision-capable user turn.
     """
     try:
         retrieved = _retrieve(
@@ -187,14 +221,14 @@ def stream_answer(
         yield _sse("error", {"message": str(exc)})
         return
 
-    if not retrieved:
+    if not retrieved and not images:
         text = _no_results_message()
         yield _sse("token", {"text": text})
         yield _sse("done", {"text": text, "sources": [], "chunk_citations": []})
         return
 
     context, sources, chunk_citations = _build_context(retrieved)
-    messages = _build_messages(list(history), context, question)
+    messages = _build_messages(list(history), context, question, images=images)
 
     parts: list[str] = []
     try:

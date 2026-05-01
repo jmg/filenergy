@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="ui-sans-serif, system-ui, sans-serif">
+  <rect width="960" height="560" fill="#f8fafc"/>
+
+  <!-- Top nav -->
+  <rect x="0" y="0" width="960" height="56" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="20" y="18" width="20" height="20" rx="4" fill="#2563eb"/>
+  <text x="48" y="32" font-size="14" font-weight="600" fill="#0f172a">Filenergy</text>
+  <text x="510" y="32" font-size="13" fill="#0f172a" font-weight="500">Dashboard</text>
+
+  <!-- Page title row -->
+  <text x="40" y="100" font-size="22" font-weight="600" fill="#0f172a">Answer quality</text>
+  <rect x="780" y="80" width="140" height="32" rx="6" fill="none" stroke="#e2e8f0"/>
+  <text x="800" y="100" font-size="13" fill="#475569">Back to activity</text>
+
+  <!-- Stat cards -->
+  <g>
+    <rect x="40" y="124" width="218" height="80" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="58" y="158" font-size="22" font-weight="600" fill="#1e40af">1,284</text>
+    <text x="58" y="184" font-size="10" fill="#94a3b8" letter-spacing="1">RATINGS</text>
+  </g>
+  <g>
+    <rect x="268" y="124" width="218" height="80" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="286" y="158" font-size="22" font-weight="600" fill="#059669">1,098</text>
+    <text x="286" y="184" font-size="10" fill="#94a3b8" letter-spacing="1">THUMBS UP</text>
+  </g>
+  <g>
+    <rect x="496" y="124" width="218" height="80" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="514" y="158" font-size="22" font-weight="600" fill="#dc2626">186</text>
+    <text x="514" y="184" font-size="10" fill="#94a3b8" letter-spacing="1">THUMBS DOWN</text>
+  </g>
+  <g>
+    <rect x="724" y="124" width="196" height="80" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="742" y="158" font-size="22" font-weight="600" fill="#0f172a">85%</text>
+    <text x="742" y="184" font-size="10" fill="#94a3b8" letter-spacing="1">SATISFACTION</text>
+  </g>
+
+  <!-- Chart -->
+  <rect x="40" y="220" width="880" height="148" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="60" y="248" font-size="10" fill="#94a3b8" letter-spacing="1">DAILY RATINGS, LAST 30 DAYS</text>
+  <line x1="60" y1="316" x2="900" y2="316" stroke="#e2e8f0"/>
+  <g>
+    <!-- Up bars (above axis) and down bars (below) — heights chosen to look like a real series. -->
+    <g>
+      <rect x="68"  y="294" width="22" height="22" fill="#10b981"/>
+      <rect x="98"  y="288" width="22" height="28" fill="#10b981"/>
+      <rect x="128" y="296" width="22" height="20" fill="#10b981"/>
+      <rect x="158" y="282" width="22" height="34" fill="#10b981"/>
+      <rect x="188" y="276" width="22" height="40" fill="#10b981"/>
+      <rect x="218" y="284" width="22" height="32" fill="#10b981"/>
+      <rect x="248" y="278" width="22" height="38" fill="#10b981"/>
+      <rect x="278" y="266" width="22" height="50" fill="#10b981"/>
+      <rect x="308" y="270" width="22" height="46" fill="#10b981"/>
+      <rect x="338" y="278" width="22" height="38" fill="#10b981"/>
+      <rect x="368" y="262" width="22" height="54" fill="#10b981"/>
+      <rect x="398" y="284" width="22" height="32" fill="#10b981"/>
+      <rect x="428" y="270" width="22" height="46" fill="#10b981"/>
+      <rect x="458" y="276" width="22" height="40" fill="#10b981"/>
+      <rect x="488" y="266" width="22" height="50" fill="#10b981"/>
+      <rect x="518" y="260" width="22" height="56" fill="#10b981"/>
+      <rect x="548" y="270" width="22" height="46" fill="#10b981"/>
+      <rect x="578" y="262" width="22" height="54" fill="#10b981"/>
+      <rect x="608" y="280" width="22" height="36" fill="#10b981"/>
+      <rect x="638" y="266" width="22" height="50" fill="#10b981"/>
+      <rect x="668" y="270" width="22" height="46" fill="#10b981"/>
+      <rect x="698" y="264" width="22" height="52" fill="#10b981"/>
+      <rect x="728" y="258" width="22" height="58" fill="#10b981"/>
+      <rect x="758" y="262" width="22" height="54" fill="#10b981"/>
+      <rect x="788" y="252" width="22" height="64" fill="#10b981"/>
+      <rect x="818" y="248" width="22" height="68" fill="#10b981"/>
+      <rect x="848" y="244" width="22" height="72" fill="#10b981"/>
+      <rect x="878" y="252" width="22" height="64" fill="#10b981"/>
+    </g>
+    <g>
+      <rect x="68" y="316" width="22" height="6"  fill="#f43f5e"/>
+      <rect x="98" y="316" width="22" height="8" fill="#f43f5e"/>
+      <rect x="128" y="316" width="22" height="4" fill="#f43f5e"/>
+      <rect x="158" y="316" width="22" height="10" fill="#f43f5e"/>
+      <rect x="188" y="316" width="22" height="14" fill="#f43f5e"/>
+      <rect x="218" y="316" width="22" height="6" fill="#f43f5e"/>
+      <rect x="248" y="316" width="22" height="12" fill="#f43f5e"/>
+      <rect x="278" y="316" width="22" height="18" fill="#f43f5e"/>
+      <rect x="308" y="316" width="22" height="8" fill="#f43f5e"/>
+      <rect x="338" y="316" width="22" height="6" fill="#f43f5e"/>
+      <rect x="368" y="316" width="22" height="20" fill="#f43f5e"/>
+      <rect x="398" y="316" width="22" height="6" fill="#f43f5e"/>
+      <rect x="428" y="316" width="22" height="14" fill="#f43f5e"/>
+      <rect x="458" y="316" width="22" height="10" fill="#f43f5e"/>
+      <rect x="488" y="316" width="22" height="22" fill="#f43f5e"/>
+      <rect x="518" y="316" width="22" height="8" fill="#f43f5e"/>
+      <rect x="548" y="316" width="22" height="14" fill="#f43f5e"/>
+      <rect x="578" y="316" width="22" height="10" fill="#f43f5e"/>
+      <rect x="608" y="316" width="22" height="6" fill="#f43f5e"/>
+      <rect x="638" y="316" width="22" height="14" fill="#f43f5e"/>
+      <rect x="668" y="316" width="22" height="8" fill="#f43f5e"/>
+      <rect x="698" y="316" width="22" height="12" fill="#f43f5e"/>
+      <rect x="728" y="316" width="22" height="18" fill="#f43f5e"/>
+      <rect x="758" y="316" width="22" height="6" fill="#f43f5e"/>
+      <rect x="788" y="316" width="22" height="22" fill="#f43f5e"/>
+      <rect x="818" y="316" width="22" height="14" fill="#f43f5e"/>
+      <rect x="848" y="316" width="22" height="8" fill="#f43f5e"/>
+      <rect x="878" y="316" width="22" height="6" fill="#f43f5e"/>
+    </g>
+  </g>
+  <text x="60" y="358" font-size="10" fill="#64748b">■ Up</text>
+  <text x="100" y="358" font-size="10" fill="#64748b">■ Down</text>
+
+  <!-- Triage queue -->
+  <rect x="40" y="384" width="880" height="156" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="60" y="412" font-size="14" font-weight="600" fill="#0f172a">Recent low-rated answers</text>
+  <text x="60" y="430" font-size="11" fill="#64748b">Triage queue. Click an answer to open the conversation.</text>
+
+  <line x1="60" y1="446" x2="900" y2="446" stroke="#f1f5f9"/>
+  <text x="60" y="468" font-size="13" fill="#1e40af" font-weight="500">RFP-Acme deliverables</text>
+  <text x="60" y="486" font-size="12" fill="#475569">The schedule references a "Phase 2" but no dates are listed in the loaded contracts...</text>
+  <rect x="850" y="456" width="40" height="22" rx="999" fill="#fee2e2"/>
+  <text x="864" y="472" font-size="11" fill="#b91c1c">▼</text>
+  <text x="850" y="494" font-size="10" fill="#94a3b8">2026-04-30</text>
+
+  <line x1="60" y1="506" x2="900" y2="506" stroke="#f1f5f9"/>
+  <text x="60" y="528" font-size="13" fill="#1e40af" font-weight="500">Termination notice period</text>
+</svg>
