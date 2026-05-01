@@ -333,6 +333,13 @@ def ask_stream():
                 message_id=msg.id,
                 sources=len(sources_payload),
             )
+            # Emit a final meta event so the browser can attach the saved
+            # message id to the rendered bubble (drives feedback / regenerate).
+            import json as _json
+            yield (
+                "event: meta\n"
+                f"data: {_json.dumps({'message_id': msg.id})}\n\n"
+            )
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return Response(
@@ -348,6 +355,65 @@ def delete_conversation(conversation_id):
     if conversations.delete(g.user, g.workspace, conversation_id):
         return jsonify(ok=True)
     return jsonify(error="Conversation not found"), 404
+
+
+@ask_bp.route("/c/<int:conversation_id>/rename", methods=["POST"])
+@login_required
+def rename_conversation(conversation_id):
+    """Inline rename of a conversation title from the chat header."""
+    from filenergy.models import Conversation
+
+    conv = Conversation.query.filter_by(
+        id=conversation_id, user_id=g.user.id, workspace_id=g.workspace.id,
+    ).first()
+    if conv is None:
+        return jsonify(error="Not found"), 404
+    payload = request.get_json(silent=True) or {}
+    title = (payload.get("title") or "").strip()
+    if not title:
+        return jsonify(error="Title is required"), 400
+    conv.title = title[:255]
+    from filenergy import db
+    db.session.commit()
+    return jsonify(ok=True, title=conv.title)
+
+
+@ask_bp.route("/feedback", methods=["POST"])
+@login_required
+def feedback():
+    """Record a thumbs up/down on an assistant message — feeds the
+    eval dashboard and lets us spot regressions in answer quality."""
+    from filenergy import db
+    from filenergy.models import Conversation, Message, MessageFeedback
+
+    payload = request.get_json(silent=True) or {}
+    message_id = payload.get("message_id")
+    rating = (payload.get("rating") or "").strip()
+    if rating not in ("up", "down"):
+        return jsonify(error="rating must be 'up' or 'down'"), 400
+    msg = Message.query.get(message_id) if message_id else None
+    if msg is None:
+        return jsonify(error="Message not found"), 404
+    conv = Conversation.query.get(msg.conversation_id)
+    if conv is None or conv.user_id != g.user.id:
+        return jsonify(error="Not found"), 404
+    fb = MessageFeedback.query.filter_by(
+        message_id=msg.id, user_id=g.user.id,
+    ).first()
+    if fb is None:
+        fb = MessageFeedback(
+            message_id=msg.id, user_id=g.user.id, rating=rating,
+        )
+        db.session.add(fb)
+    else:
+        fb.rating = rating
+    db.session.commit()
+    events.log_event(
+        events.ASK_FEEDBACK,
+        user=g.user, workspace_id=g.workspace.id,
+        message_id=msg.id, rating=rating,
+    )
+    return jsonify(ok=True)
 
 
 @ask_bp.route("/c/<int:conversation_id>/share", methods=["POST"])

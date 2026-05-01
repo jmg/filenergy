@@ -1,15 +1,23 @@
 {% extends "base.html" %}
 
+{% block title %}Ask · Filenergy{% endblock %}
+
 {% block content %}
 <div class="grid gap-6 lg:grid-cols-[260px_1fr]">
 
   <aside class="space-y-3">
-    <a class="btn btn-primary w-full justify-center" href="/ask/">+ New conversation</a>
-    <h4 class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent</h4>
-    <nav class="space-y-1">
+    <a class="btn btn-primary w-full justify-center" href="/ask/">
+      <svg class="icon"><use href="#i-chat"/></svg> New conversation
+    </a>
+    <div class="relative">
+      <svg class="icon absolute left-2 top-2.5 text-slate-400"><use href="#i-search"/></svg>
+      <input id="conv-filter" type="text" class="input pl-8" placeholder="Filter…">
+    </div>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent</h4>
+    <nav id="conv-list" class="space-y-1">
       {% for c in conversations %}
-        <a href="/ask/c/{{c.id}}"
-           class="{% if active_conversation and active_conversation.id == c.id %}nav-link-active{% else %}nav-link{% endif %} truncate text-sm">
+        <a href="/ask/c/{{c.id}}" data-title="{{ c.title or 'Untitled' }}"
+           class="conv-link {% if active_conversation and active_conversation.id == c.id %}nav-link-active{% else %}nav-link{% endif %} truncate text-sm">
           {{ c.title or 'Untitled' }}
         </a>
       {% else %}
@@ -21,38 +29,102 @@
   <main class="min-w-0 space-y-4">
 
     {% if not status.anthropic or not status.embeddings %}
-    <div class="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-      Chat is not fully configured. You need
-      <code class="rounded bg-amber-100 px-1">ANTHROPIC_API_KEY</code>
-      ({% if status.anthropic %}OK{% else %}missing{% endif %})
-      and <code class="rounded bg-amber-100 px-1">VOYAGE_API_KEY</code>
-      ({% if status.embeddings %}OK{% else %}missing{% endif %}).
+    <div class="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+      <svg class="icon-lg mt-0.5"><use href="#i-alert"/></svg>
+      <div>
+        Chat is not fully configured. Set
+        <code class="rounded bg-amber-100 px-1">ANTHROPIC_API_KEY</code>
+        ({% if status.anthropic %}OK{% else %}missing{% endif %}) and
+        <code class="rounded bg-amber-100 px-1">VOYAGE_API_KEY</code>
+        ({% if status.embeddings %}OK{% else %}missing{% endif %}).
+      </div>
+    </div>
+    {% endif %}
+
+    {% if active_conversation %}
+    <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <div class="flex flex-1 items-center gap-2 min-w-0">
+        <input id="title-input" type="text"
+               class="min-w-0 flex-1 border-0 bg-transparent px-1 text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:rounded"
+               value="{{ active_conversation.title or 'Untitled' }}">
+        <span id="title-status" class="text-xs text-slate-400"></span>
+      </div>
+      <div class="flex flex-shrink-0 gap-1">
+        <a class="btn btn-ghost text-xs" target="_blank"
+           href="/ask/c/{{ active_conversation.id }}/export.md">Export</a>
+      </div>
     </div>
     {% endif %}
 
     <div id="thread"
-         class="max-h-[60vh] min-h-[320px] space-y-3 overflow-y-auto rounded border border-slate-200 bg-white p-4"
+         class="max-h-[60vh] min-h-[320px] space-y-4 overflow-y-auto rounded-lg border border-slate-200 bg-white p-4"
          data-conversation-id="{% if active_conversation %}{{active_conversation.id}}{% endif %}">
+      {% if not history %}
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+          <div class="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-500">
+            <svg class="icon-lg"><use href="#i-chat"/></svg>
+          </div>
+          <h3 class="text-base font-semibold">Ask anything about your library</h3>
+          <p class="mt-1 max-w-sm text-sm text-slate-500">
+            Try one of these starters or type your own question below.
+          </p>
+          <div class="mt-4 grid w-full max-w-md gap-2 sm:grid-cols-2">
+            {% for s in [
+              'Summarize my docs in one paragraph',
+              'What are the action items from this week?',
+              'List every deadline mentioned',
+              'Find references to "termination clause"',
+            ] %}
+              <button type="button" class="starter rounded-lg border border-slate-200 p-3 text-left text-sm transition hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700">
+                {{ s }}
+              </button>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
       {% for m in (history or []) %}
-        <div class="message {{m.role}} rounded-lg p-3 {% if m.role == 'user' %}bg-brand-50 ml-8{% else %}bg-slate-50 mr-8{% endif %}">
+        <div class="message group rounded-lg p-3 {% if m.role == 'user' %}bg-brand-50 ml-8{% else %}bg-slate-50 mr-8{% endif %}"
+             data-message-id="{{ m.id }}" data-role="{{ m.role }}">
           <div class="body prose prose-sm max-w-none">{{ m.content }}</div>
           {% if m.sources_json %}
             <div class="sources mt-2 text-xs text-slate-600"
                  data-sources='{{ m.sources_json }}'>Sources:</div>
           {% endif %}
+          <div class="actions mt-2 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+            <button class="copy-btn rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700" title="Copy">
+              <svg class="icon"><use href="#i-copy"/></svg>
+            </button>
+            {% if m.role == 'assistant' %}
+              <button class="thumbs-up rounded p-1 text-slate-400 hover:bg-white hover:text-emerald-600" title="Helpful">
+                <svg class="icon"><use href="#i-thumbs-up"/></svg>
+              </button>
+              <button class="thumbs-down rounded p-1 text-slate-400 hover:bg-white hover:text-rose-600" title="Not helpful">
+                <svg class="icon"><use href="#i-thumbs-down"/></svg>
+              </button>
+              <button class="regenerate rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700" title="Regenerate">
+                <svg class="icon"><use href="#i-refresh"/></svg>
+              </button>
+            {% endif %}
+          </div>
         </div>
       {% endfor %}
     </div>
 
     <form id="ask-form" class="card space-y-2"
           onsubmit="askQuestion(); return false;">
-      <textarea id="question" class="input min-h-[90px] resize-y"
-                placeholder="Ask anything about your library..." required></textarea>
+      <textarea id="question" class="input min-h-[88px] resize-y"
+                placeholder="Ask anything about your library..."
+                required>{{ prefill_question or '' }}</textarea>
       <div class="flex items-center justify-between">
         <small class="text-slate-500">
-          Streamed via SSE. Press <kbd class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">Cmd/Ctrl+Enter</kbd> to send.
+          <span class="kbd">⌘</span> + <span class="kbd">↵</span> to send · streamed via SSE
         </small>
-        <button type="submit" class="btn btn-primary">Send</button>
+        <div class="flex gap-2">
+          <button id="stop-btn" type="button" class="btn btn-ghost hidden">
+            <svg class="icon"><use href="#i-stop"/></svg> Stop
+          </button>
+          <button id="send-btn" type="submit" class="btn btn-primary">Send</button>
+        </div>
       </div>
     </form>
 
@@ -78,10 +150,22 @@
   function getConversationId() { return $('#thread').data('conversation-id') || null; }
   function setConversationId(id) { $('#thread').data('conversation-id', id); }
 
+  function actionsHtml(role) {
+    var html = '<div class="actions mt-2 flex items-center gap-1 opacity-0 transition">' +
+        '<button class="copy-btn rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700" title="Copy"><svg class="icon"><use href="#i-copy"/></svg></button>';
+    if (role === 'assistant') {
+      html += '<button class="thumbs-up rounded p-1 text-slate-400 hover:bg-white hover:text-emerald-600" title="Helpful"><svg class="icon"><use href="#i-thumbs-up"/></svg></button>' +
+              '<button class="thumbs-down rounded p-1 text-slate-400 hover:bg-white hover:text-rose-600" title="Not helpful"><svg class="icon"><use href="#i-thumbs-down"/></svg></button>' +
+              '<button class="regenerate rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700" title="Regenerate"><svg class="icon"><use href="#i-refresh"/></svg></button>';
+    }
+    return html + '</div>';
+  }
+
   function appendMessage(role, html) {
     var bg = role === 'user' ? 'bg-brand-50 ml-8' : 'bg-slate-50 mr-8';
-    var $el = $('<div class="message rounded-lg p-3 ' + bg + '"></div>');
+    var $el = $('<div class="message group rounded-lg p-3 ' + bg + '" data-role="' + role + '"></div>');
     $el.append('<div class="body prose prose-sm max-w-none">'+html+'</div>');
+    $el.append(actionsHtml(role));
     $('#thread').append($el);
     $el[0].scrollIntoView({behavior:'smooth', block:'end'});
     return $el;
@@ -92,28 +176,32 @@
     var html = sources.map(function(s){
       return '<a class="text-brand-600 hover:underline mr-2" href="/file/download/?h='+encodeURIComponent(s.url)+'">'+escapeHtml(s.name)+'</a>';
     }).join('');
-    $msg.append('<div class="mt-2 text-xs text-slate-600">Sources: '+html+'</div>');
+    $msg.find('.actions').before('<div class="mt-2 text-xs text-slate-600">Sources: '+html+'</div>');
   }
 
-  function askQuestion() {
-    var $q = $('#question');
-    var question = $q.val().trim();
-    if (!question) return;
-    $q.val('').prop('disabled', true);
-    $('#ask-form button').prop('disabled', true);
+  var currentXhr = null;
 
-    appendMessage('user', escapeHtml(question));
-    var $assistant = appendMessage('assistant', '<span class="italic text-slate-500">Thinking...</span>');
+  function askQuestion(opts) {
+    opts = opts || {};
+    var $q = $('#question');
+    var question = (opts.question || $q.val()).trim();
+    if (!question) return;
+    if (!opts.regenerate) { $q.val('').prop('disabled', true); }
+    $('#send-btn').prop('disabled', true);
+    $('#stop-btn').removeClass('hidden');
+    $('#thread .py-12').remove();
+
+    if (!opts.regenerate) { appendMessage('user', escapeHtml(question)); }
+    var $assistant = appendMessage('assistant', '<span class="italic text-slate-500">Thinking…</span>');
 
     var payload = JSON.stringify({question: question, conversation_id: getConversationId()});
     var xhr = new XMLHttpRequest();
+    currentXhr = xhr;
     xhr.open('POST', '/ask/stream');
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.setRequestHeader('Accept', 'text/event-stream');
 
-    var buffer = '';
-    var fullText = '';
-    var sources = [];
+    var buffer = '', fullText = '';
 
     xhr.onreadystatechange = function() {
       if (xhr.readyState < 3) return;
@@ -131,6 +219,8 @@
         try { parsed = JSON.parse(data); } catch(e) {}
         if (ev === 'meta' && parsed.conversation_id) {
           setConversationId(parsed.conversation_id);
+        } else if (ev === 'meta' && parsed.message_id) {
+          $assistant.attr('data-message-id', parsed.message_id);
         } else if (ev === 'token') {
           fullText += parsed.text || '';
           $assistant.find('.body').html(renderMarkdown(fullText));
@@ -139,28 +229,75 @@
             fullText = parsed.text;
             $assistant.find('.body').html(renderMarkdown(fullText));
           }
-          sources = parsed.sources || [];
-          appendSources($assistant, sources);
+          appendSources($assistant, parsed.sources || []);
         } else if (ev === 'error') {
           $assistant.find('.body').html('<span class="text-rose-600">'+escapeHtml(parsed.message || 'error')+'</span>');
         }
       });
       if (xhr.readyState === 4) {
         $q.prop('disabled', false).focus();
-        $('#ask-form button').prop('disabled', false);
+        $('#send-btn').prop('disabled', false);
+        $('#stop-btn').addClass('hidden');
+        currentXhr = null;
       }
     };
-
     xhr.onerror = function() {
       $assistant.find('.body').html('<span class="text-rose-600">Network error.</span>');
       $q.prop('disabled', false);
-      $('#ask-form button').prop('disabled', false);
+      $('#send-btn').prop('disabled', false);
+      $('#stop-btn').addClass('hidden');
+      currentXhr = null;
     };
     xhr.send(payload);
   }
 
+  $('#stop-btn').on('click', function() {
+    if (currentXhr) { currentXhr.abort(); currentXhr = null; }
+    $('#send-btn').prop('disabled', false);
+    $('#stop-btn').addClass('hidden');
+    $('#question').prop('disabled', false).focus();
+  });
+
   $('#question').on('keydown', function(e) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { askQuestion(); }
+  });
+
+  $(document).on('click', '.starter', function() {
+    askQuestion({question: $(this).text().trim()});
+  });
+
+  $(document).on('mouseenter', '.message', function(){ $(this).find('.actions').css('opacity', 1); });
+  $(document).on('mouseleave', '.message', function(){ $(this).find('.actions').css('opacity', ''); });
+
+  $(document).on('click', '.copy-btn', function() {
+    var text = $(this).closest('.message').find('.body').text();
+    navigator.clipboard.writeText(text).then(function() { window.fnToast('Copied to clipboard', 'success'); });
+  });
+
+  $(document).on('click', '.thumbs-up, .thumbs-down', function() {
+    var $btn = $(this);
+    var rating = $btn.hasClass('thumbs-up') ? 'up' : 'down';
+    var msgId = $btn.closest('.message').attr('data-message-id');
+    if (!msgId) return;
+    $.ajax({
+      url: '/ask/feedback', method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({message_id: parseInt(msgId, 10), rating: rating}),
+    }).done(function() {
+      $btn.addClass(rating === 'up' ? 'text-emerald-600' : 'text-rose-600');
+      window.fnToast('Thanks for the feedback', 'success');
+    }).fail(function() {
+      window.fnToast('Could not save feedback', 'error');
+    });
+  });
+
+  $(document).on('click', '.regenerate', function() {
+    var $msg = $(this).closest('.message');
+    var $prevUser = $msg.prevAll('.message[data-role="user"]').first();
+    if (!$prevUser.length) return;
+    var prompt = $prevUser.find('.body').text().trim();
+    $msg.remove();
+    askQuestion({question: prompt, regenerate: true});
   });
 
   $('.message .sources[data-sources]').each(function() {
@@ -175,10 +312,46 @@
   });
   $('.message .body').each(function() {
     var $b = $(this);
-    if ($b.children().length === 0) {
-      $b.html(renderMarkdown($b.text()));
-    }
+    if ($b.children().length === 0) { $b.html(renderMarkdown($b.text())); }
   });
-</script>
 
+  $('#conv-filter').on('input', function() {
+    var q = $(this).val().toLowerCase();
+    $('#conv-list .conv-link').each(function() {
+      var t = ($(this).attr('data-title') || '').toLowerCase();
+      $(this).toggle(!q || t.indexOf(q) >= 0);
+    });
+  });
+
+  $('#title-input').on('blur', renameConversation).on('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); $(this).blur(); }
+    if (e.key === 'Escape') { $(this).val($(this).attr('value')); $(this).blur(); }
+  });
+  function renameConversation() {
+    var id = getConversationId();
+    var newTitle = $('#title-input').val().trim();
+    if (!id || !newTitle) return;
+    $('#title-status').text('Saving…').removeClass('text-rose-600 text-emerald-600');
+    $.ajax({
+      url: '/ask/c/' + id + '/rename', method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({title: newTitle}),
+    }).done(function() {
+      $('#title-status').text('Saved').addClass('text-emerald-600');
+      setTimeout(function(){ $('#title-status').text(''); }, 1500);
+    }).fail(function() {
+      $('#title-status').text('Error').addClass('text-rose-600');
+    });
+  }
+
+  (function() {
+    var params = new URLSearchParams(location.search);
+    var q = params.get('q');
+    if (q) {
+      $('#question').val(q);
+      askQuestion();
+      history.replaceState({}, '', location.pathname);
+    }
+  })();
+</script>
 {% endblock %}

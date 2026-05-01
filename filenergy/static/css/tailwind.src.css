@@ -20,10 +20,22 @@
   .table        { @apply w-full text-left text-sm; }
   .table th     { @apply border-b border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500; }
   .table td     { @apply border-b border-slate-100 px-3 py-2.5 align-middle; }
-  .nav-link     { @apply rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900; }
+  .nav-link     { @apply flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900; }
   .nav-link-active { @apply bg-slate-100 text-slate-900; }
-  .flash        { @apply mb-3 rounded-md border px-4 py-2 text-sm; }
+  .flash        { @apply mb-3 flex items-start gap-3 rounded-md border px-4 py-3 text-sm shadow-sm; }
   .flash-error  { @apply border-rose-200 bg-rose-50 text-rose-700; }
   .flash-success{ @apply border-emerald-200 bg-emerald-50 text-emerald-700; }
   .prose-thin p { @apply mb-2; }
+  .skeleton     { @apply rounded bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100; background-size: 1000px 100%; animation: shimmer 1.4s linear infinite; }
+  .kbd          { @apply rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs font-mono text-slate-600 shadow-sm; }
+  .toast        { @apply pointer-events-auto flex items-start gap-3 rounded-lg border bg-white px-4 py-3 text-sm shadow-lg; }
+  .toast-error  { @apply border-rose-200 text-rose-700; }
+  .toast-success{ @apply border-emerald-200 text-emerald-700; }
+  .toast-info   { @apply border-slate-200 text-slate-700; }
+  .icon         { @apply h-4 w-4 flex-shrink-0; }
+  .icon-lg      { @apply h-5 w-5 flex-shrink-0; }
 }
+
+@keyframes shimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
+@keyframes slideUp { 0% { transform: translateY(8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+.animate-slide-up { animation: slideUp .15s ease-out; }

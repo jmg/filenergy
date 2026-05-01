@@ -8,6 +8,25 @@ with citations, a programmatic API, and Stripe billing built in.
 Stack: Flask 3 + SQLite, [Voyage](https://www.voyageai.com/) embeddings,
 the Anthropic Claude API for answers, and Stripe Checkout for billing.
 
+## UX
+
+- **Command palette** (⌘K / Ctrl+K / `/`) — quick-jump to any page,
+  searchable, keyboard-driven.
+- **Chat power moves** — Stop generation mid-stream, Regenerate the last
+  answer, thumbs up/down per assistant message (feeds the eval signal),
+  copy any message, inline rename of conversations, deep-linkable
+  starter questions.
+- **File library** — bulk multi-select with checkbox column, bulk
+  delete + reindex, instant client-side filter, drag-drop upload zone
+  with per-file progress and inline retry.
+- **Mobile-first nav** — hamburger drawer on small screens; chat &
+  settings layouts collapse cleanly on mobile.
+- **Toasts** — flash messages render as dismissable toasts (auto-hide
+  on success, manual dismiss on error). `window.fnToast(msg, kind)` is
+  available everywhere for ad-hoc notifications.
+- **SVG icon sprite** baked into base.html — every nav item, button,
+  and empty state uses a consistent line-icon set.
+
 ## Highlights
 
 - **Workspaces (multi-tenant)** — every user gets a personal workspace and

@@ -2,61 +2,194 @@
 
 {% block content %}
 <div class="card">
-  <div class="mb-4 flex items-center justify-between">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <h2 class="text-xl font-semibold">My files</h2>
-    <a class="btn btn-primary" href="/file/upload/">Upload</a>
+    <div class="flex flex-wrap gap-2">
+      <div class="relative">
+        <svg class="icon absolute left-2 top-2.5 text-slate-400"><use href="#i-search"/></svg>
+        <input id="file-filter" type="text" class="input pl-8 w-56" placeholder="Filter by name…">
+      </div>
+      <a class="btn btn-primary" href="/file/upload/">
+        <svg class="icon"><use href="#i-upload"/></svg>Upload
+      </a>
+    </div>
   </div>
 
   {% if files %}
-  <ul class="divide-y divide-slate-100">
-    {% for file in files %}
-    <li id="file-{{file.id}}"
-        class="flex items-center gap-3 py-3">
-      <span class="pill pill-{{ 'success' if file.index_status == 'indexed' else 'warn' if file.index_status == 'pending' else 'error' }} index-pill"
-            title="{{file.index_error or ''}}">
-        {{file.index_status}}
-      </span>
-      <a class="flex-1 truncate font-medium text-brand-600 hover:underline"
-         href="/file/download/?h={{file.url}}">{{file.name}}</a>
-      <span class="hidden text-xs text-slate-500 sm:inline">
-        {{ "%.1f"|format((file.size_bytes or 0) / 1024) }} KB
-      </span>
-      <div class="flex gap-2">
-        <button class="btn btn-ghost text-xs"
-                onclick="reindexFile({{file.id}})">Reindex</button>
-        <button class="btn btn-ghost text-xs text-rose-600"
-                onclick="deleteFile({{file.id}})">Delete</button>
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
+  <div id="bulk-bar"
+       class="mb-3 hidden flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
+    <span><span id="bulk-count">0</span> file<span id="bulk-plural">s</span> selected</span>
+    <div class="flex flex-wrap gap-1">
+      <button class="btn btn-ghost text-xs" id="bulk-reindex">
+        <svg class="icon"><use href="#i-refresh"/></svg> Reindex
+      </button>
+      <button class="btn btn-ghost text-xs text-rose-600" id="bulk-delete">
+        <svg class="icon"><use href="#i-trash"/></svg> Delete
+      </button>
+      <button class="btn btn-ghost text-xs" id="bulk-clear">Clear</button>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-lg border border-slate-100">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="w-8">
+            <input type="checkbox" id="select-all" class="rounded border-slate-300">
+          </th>
+          <th>Name</th>
+          <th class="hidden md:table-cell">Status</th>
+          <th class="hidden md:table-cell">Size</th>
+          <th class="text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="file-rows">
+        {% for file in files %}
+        <tr id="file-{{file.id}}" class="file-row" data-name="{{ file.name|lower }}">
+          <td>
+            <input type="checkbox" class="row-check rounded border-slate-300"
+                   data-file-id="{{file.id}}">
+          </td>
+          <td>
+            <a class="font-medium text-brand-600 hover:underline" href="{{ url_for('file.detail', file_id=file.id) }}">
+              {{file.name}}
+            </a>
+          </td>
+          <td class="hidden md:table-cell">
+            <span class="pill pill-{{ 'success' if file.index_status == 'indexed' else 'warn' if file.index_status == 'pending' else 'error' }} index-pill"
+                  title="{{file.index_error or ''}}">
+              {{file.index_status}}
+            </span>
+          </td>
+          <td class="hidden text-xs text-slate-500 md:table-cell">
+            {{ "%.1f"|format((file.size_bytes or 0) / 1024) }} KB
+          </td>
+          <td class="text-right">
+            <button class="btn btn-ghost text-xs"
+                    onclick="reindexFile({{file.id}})" title="Reindex">
+              <svg class="icon"><use href="#i-refresh"/></svg>
+            </button>
+            <button class="btn btn-ghost text-xs text-rose-600"
+                    onclick="deleteFile({{file.id}})" title="Delete">
+              <svg class="icon"><use href="#i-trash"/></svg>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p id="empty-filter" class="hidden py-8 text-center text-sm text-slate-400">
+    No files match your filter.
+  </p>
   {% else %}
-  <div class="py-12 text-center">
-    <p class="text-slate-500">No files yet.</p>
-    <a class="btn btn-primary mt-4" href="/file/upload/">Upload your first file</a>
+  <div class="py-16 text-center">
+    <div class="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+      <svg class="icon-lg"><use href="#i-files"/></svg>
+    </div>
+    <h3 class="text-base font-semibold">No files yet</h3>
+    <p class="mt-1 text-sm text-slate-500">Upload your first file to start asking questions.</p>
+    <a class="btn btn-primary mt-4" href="/file/upload/">
+      <svg class="icon"><use href="#i-upload"/></svg>
+      Upload a file
+    </a>
   </div>
   {% endif %}
 </div>
 
 <script>
-function deleteFile(id) {
-    if (!confirm("Delete this file?")) return;
-    $.post("/file/delete/", {id: id}, function() {
-        $("#file-" + id).fadeOut(function() { $(this).remove(); });
+$('#file-filter').on('input', function() {
+  var q = $(this).val().toLowerCase();
+  var visibleCount = 0;
+  $('.file-row').each(function() {
+    var name = $(this).attr('data-name') || '';
+    var match = !q || name.indexOf(q) >= 0;
+    $(this).toggle(match);
+    if (match) visibleCount++;
+  });
+  $('#empty-filter').toggleClass('hidden', visibleCount > 0 || !q);
+});
+
+function selectedIds() {
+  return $('.row-check:checked').map(function(){ return parseInt($(this).attr('data-file-id'), 10); }).get();
+}
+function refreshBulkBar() {
+  var ids = selectedIds();
+  var n = ids.length;
+  $('#bulk-bar').toggleClass('hidden', n === 0).toggleClass('flex', n > 0);
+  $('#bulk-count').text(n);
+  $('#bulk-plural').toggle(n !== 1);
+}
+$('#select-all').on('change', function() {
+  $('.row-check').prop('checked', $(this).is(':checked'));
+  refreshBulkBar();
+});
+$(document).on('change', '.row-check', refreshBulkBar);
+$('#bulk-clear').on('click', function() {
+  $('.row-check, #select-all').prop('checked', false); refreshBulkBar();
+});
+
+$('#bulk-delete').on('click', function() {
+  var ids = selectedIds();
+  if (!ids.length) return;
+  if (!confirm('Delete ' + ids.length + ' file(s)? This cannot be undone.')) return;
+  $.ajax({
+    url: '/file/bulk_delete/', method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ids: ids}),
+  }).done(function() {
+    ids.forEach(function(id) {
+      $('#file-' + id).fadeOut(150, function(){ $(this).remove(); });
     });
+    refreshBulkBar();
+    window.fnToast(ids.length + ' file(s) deleted', 'success');
+  }).fail(function() {
+    window.fnToast('Bulk delete failed', 'error');
+  });
+});
+
+$('#bulk-reindex').on('click', function() {
+  var ids = selectedIds();
+  if (!ids.length) return;
+  ids.forEach(function(id) {
+    var $b = $('#file-' + id).find('.index-pill');
+    $b.removeClass('pill-success pill-warn pill-error').addClass('pill-warn').text('indexing…');
+    $.post('/file/reindex/', {id: id});
+  });
+  window.fnToast('Reindexing ' + ids.length + ' file(s)…', 'info');
+});
+
+function deleteFile(id) {
+  if (!confirm("Delete this file?")) return;
+  var $row = $("#file-" + id);
+  $row.css('opacity', 0.4);
+  $.post("/file/delete/", {id: id}).done(function() {
+    $row.fadeOut(150, function(){ $(this).remove(); });
+  }).fail(function() {
+    $row.css('opacity', 1);
+    window.fnToast('Could not delete file', 'error');
+  });
 }
 
 function reindexFile(id) {
-    var $row = $("#file-" + id);
-    var $b = $row.find(".index-pill");
-    $b.removeClass('pill-success pill-warn pill-error').addClass('pill-warn').text('indexing...');
-    $.post("/file/reindex/", {id: id}, function(resp) {
-        $b.removeClass('pill-success pill-warn pill-error');
-        var cls = resp.status === 'indexed' ? 'pill-success' : resp.status === 'pending' ? 'pill-warn' : 'pill-error';
-        $b.addClass(cls).text(resp.status);
-    }).fail(function() {
-        $b.removeClass('pill-success pill-warn pill-error').addClass('pill-error').text('error');
-    });
+  var $row = $("#file-" + id);
+  var $b = $row.find(".index-pill");
+  var prev = $b.text();
+  var prevCls = $b.hasClass('pill-success') ? 'pill-success' :
+                $b.hasClass('pill-warn') ? 'pill-warn' : 'pill-error';
+  $b.removeClass('pill-success pill-warn pill-error').addClass('pill-warn').text('indexing…');
+  $.post("/file/reindex/", {id: id}).done(function(resp) {
+    $b.removeClass('pill-success pill-warn pill-error');
+    var cls = resp.status === 'indexed' ? 'pill-success' :
+              resp.status === 'pending' ? 'pill-warn' : 'pill-error';
+    $b.addClass(cls).text(resp.status);
+    window.fnToast('Reindex queued', 'success');
+  }).fail(function() {
+    $b.removeClass('pill-success pill-warn pill-error').addClass(prevCls).text(prev);
+    window.fnToast('Reindex failed', 'error');
+  });
 }
+window.deleteFile = deleteFile;
+window.reindexFile = reindexFile;
 </script>
 {% endblock %}

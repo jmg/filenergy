@@ -1,46 +1,95 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="mx-auto max-w-xl">
-  <div class="card">
-    <h2 class="text-2xl font-semibold">Welcome to Filenergy</h2>
-    <p class="mt-1 text-sm text-slate-600">Two quick choices and you're done.</p>
+<div class="mx-auto max-w-2xl">
+  <div class="text-center">
+    <div class="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+      <svg class="icon-lg"><use href="#i-chat"/></svg>
+    </div>
+    <h1 class="text-3xl font-semibold tracking-tight">Welcome to Filenergy</h1>
+    <p class="mt-2 text-slate-600">Three quick steps and you're chatting with your files.</p>
+  </div>
 
-    <h4 class="mt-6 text-sm font-semibold text-slate-700">1. Name your workspace</h4>
-    <form method="POST" action="{{ url_for('onboarding.rename_workspace') }}"
-          class="mt-2 flex gap-2">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input class="input flex-1" type="text" name="name"
-             value="{{ workspace_name }}" required>
-      <button class="btn btn-ghost" type="submit">Save</button>
-    </form>
+  <ol class="mt-8 space-y-4">
+    <li class="card">
+      <div class="flex items-center gap-3">
+        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-sm font-semibold text-white">1</span>
+        <h3 class="card-title">Name your workspace</h3>
+      </div>
+      <form method="POST" action="{{ url_for('onboarding.rename_workspace') }}"
+            class="mt-3 flex gap-2 pl-11">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input class="input flex-1" type="text" name="name"
+               value="{{ workspace_name }}" required>
+        <button class="btn btn-ghost" type="submit">Save</button>
+      </form>
+    </li>
 
-    <h4 class="mt-8 text-sm font-semibold text-slate-700">
-      2. Try it with sample files?
-    </h4>
-    <p class="mt-1 text-sm text-slate-600">
-      We'll drop three short Markdown files into your library so you can
-      immediately try the chat. You can delete them anytime.
-    </p>
+    <li class="card">
+      <div class="flex items-center gap-3">
+        <span class="flex h-8 w-8 items-center justify-center rounded-full {% if has_files %}bg-emerald-500{% else %}bg-brand-500{% endif %} text-sm font-semibold text-white">
+          {% if has_files %}<svg class="icon"><use href="#i-check"/></svg>{% else %}2{% endif %}
+        </span>
+        <h3 class="card-title">Add some files</h3>
+      </div>
 
-    {% if has_files %}
-      <p class="mt-3 text-sm text-slate-500">
-        <em>You already have files — skip this step.</em>
-      </p>
-      <a class="btn btn-primary mt-3"
-         href="{{ url_for('ask.index') }}">Ask your library</a>
-    {% else %}
-      <div class="mt-4 flex flex-wrap gap-2">
-        <form method="POST" action="{{ url_for('onboarding.seed') }}">
+      <div class="pl-11">
+        {% if has_files %}
+          <p class="mt-2 text-sm text-slate-500">Done — your library has files.</p>
+        {% else %}
+          <p class="mt-2 text-sm text-slate-600">
+            We'll drop three short docs (a contract template, a product
+            spec, a meeting note) so you can try the chat right away.
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <form method="POST" action="{{ url_for('onboarding.seed') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-primary" type="submit">
+                <svg class="icon"><use href="#i-files"/></svg>
+                Add sample files
+              </button>
+            </form>
+            <a class="btn btn-ghost" href="/file/upload/">
+              <svg class="icon"><use href="#i-upload"/></svg>
+              Upload my own
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </li>
+
+    <li class="card">
+      <div class="flex items-center gap-3">
+        <span class="flex h-8 w-8 items-center justify-center rounded-full {% if has_files %}bg-brand-500{% else %}bg-slate-300{% endif %} text-sm font-semibold text-white">3</span>
+        <h3 class="card-title">Ask your first question</h3>
+      </div>
+      <div class="pl-11">
+        <p class="mt-2 text-sm text-slate-600">Try one of these starters:</p>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+          {% for starter in [
+            'Summarize my documents in one paragraph',
+            'What action items came out of recent meetings?',
+            'List the key dates mentioned across my files',
+            'Find every place that mentions a deadline',
+          ] %}
+            <a href="{{ url_for('ask.index') }}?q={{ starter|urlencode }}"
+               class="rounded-lg border border-slate-200 bg-white p-3 text-left text-sm transition hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700">
+              {{ starter }}
+            </a>
+          {% endfor %}
+        </div>
+        <a class="btn btn-primary btn-large mt-4" href="{{ url_for('ask.index') }}">
+          <svg class="icon"><use href="#i-chat"/></svg>
+          Open chat
+        </a>
+        <form method="POST" action="{{ url_for('onboarding.skip') }}" class="mt-3">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-primary btn-large" type="submit">Add sample files</button>
-        </form>
-        <form method="POST" action="{{ url_for('onboarding.skip') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-ghost btn-large" type="submit">Skip — I'll upload my own</button>
+          <button class="text-xs text-slate-400 hover:underline" type="submit">
+            Skip onboarding for now
+          </button>
         </form>
       </div>
-    {% endif %}
-  </div>
+    </li>
+  </ol>
 </div>
 {% endblock %}
