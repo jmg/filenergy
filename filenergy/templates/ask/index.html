@@ -113,13 +113,18 @@
     <form id="ask-form" class="card space-y-2"
           onsubmit="askQuestion(); return false;">
       <textarea id="question" class="input min-h-[88px] resize-y"
-                placeholder="Ask anything about your library..."
+                placeholder="Ask anything about your library — paste an image to add vision..."
                 required>{{ prefill_question or '' }}</textarea>
+      <ul id="image-thumbs" class="hidden flex-wrap gap-2"></ul>
+      <input id="image-input" type="file" accept="image/*" multiple class="hidden">
       <div class="flex items-center justify-between">
         <small class="text-slate-500">
           <span class="kbd">⌘</span> + <span class="kbd">↵</span> to send · streamed via SSE
         </small>
         <div class="flex gap-2">
+          <button id="attach-btn" type="button" class="btn btn-ghost" title="Attach image">
+            <svg class="icon"><use href="#i-files"/></svg>
+          </button>
           <button id="stop-btn" type="button" class="btn btn-ghost hidden">
             <svg class="icon"><use href="#i-stop"/></svg> Stop
           </button>
@@ -180,6 +185,79 @@
   }
 
   var currentXhr = null;
+  var pendingImages = [];  // [{media_type, data, name, dataUrl}]
+
+  function readImage(file) {
+    return new Promise(function(resolve, reject) {
+      if (!file.type.startsWith('image/')) {
+        reject(new Error('Not an image'));
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function() {
+        var dataUrl = reader.result;
+        var b64 = dataUrl.split(',')[1] || '';
+        resolve({
+          media_type: file.type,
+          data: b64,
+          name: file.name,
+          dataUrl: dataUrl,
+        });
+      };
+      reader.onerror = function() { reject(reader.error); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderImageThumbs() {
+    var $ul = $('#image-thumbs');
+    $ul.empty();
+    pendingImages.forEach(function(img, i) {
+      var $li = $(
+        '<li class="relative">' +
+          '<img class="h-16 w-16 rounded border border-slate-200 object-cover" />' +
+          '<button type="button" class="absolute -right-1 -top-1 rounded-full bg-slate-900 p-0.5 text-white hover:bg-slate-700" title="Remove">' +
+            '<svg class="icon" style="height:12px;width:12px"><use href="#i-x"/></svg>' +
+          '</button>' +
+        '</li>'
+      );
+      $li.find('img').attr('src', img.dataUrl).attr('alt', img.name);
+      $li.find('button').on('click', function() {
+        pendingImages.splice(i, 1);
+        renderImageThumbs();
+      });
+      $ul.append($li);
+    });
+    $ul.toggleClass('hidden flex', false);
+    $ul.toggleClass('flex', pendingImages.length > 0);
+    $ul.toggleClass('hidden', pendingImages.length === 0);
+  }
+
+  function attachFiles(files) {
+    Array.from(files || []).slice(0, 5 - pendingImages.length).forEach(function(file) {
+      readImage(file).then(function(img) {
+        pendingImages.push(img);
+        renderImageThumbs();
+      }).catch(function() { /* ignore non-images */ });
+    });
+  }
+
+  $('#attach-btn').on('click', function() { $('#image-input').trigger('click'); });
+  $('#image-input').on('change', function() { attachFiles(this.files); $(this).val(''); });
+  // Paste an image straight into the composer.
+  $('#question').on('paste', function(e) {
+    var items = (e.originalEvent && e.originalEvent.clipboardData && e.originalEvent.clipboardData.items) || [];
+    var imgFiles = [];
+    Array.from(items).forEach(function(it) {
+      if (it.kind === 'file' && it.type.startsWith('image/')) {
+        imgFiles.push(it.getAsFile());
+      }
+    });
+    if (imgFiles.length) {
+      e.preventDefault();
+      attachFiles(imgFiles);
+    }
+  });
 
   function askQuestion(opts) {
     opts = opts || {};
@@ -191,10 +269,27 @@
     $('#stop-btn').removeClass('hidden');
     $('#thread .py-12').remove();
 
-    if (!opts.regenerate) { appendMessage('user', escapeHtml(question)); }
+    var imagesForRequest = opts.regenerate ? [] : pendingImages.slice();
+    if (!opts.regenerate) {
+      var userHtml = escapeHtml(question);
+      if (imagesForRequest.length) {
+        userHtml = imagesForRequest.map(function(img){
+          return '<img src="' + img.dataUrl + '" class="mr-1 mb-1 inline-block h-12 w-12 rounded object-cover" />';
+        }).join('') + '<br>' + userHtml;
+      }
+      appendMessage('user', userHtml);
+      pendingImages = [];
+      renderImageThumbs();
+    }
     var $assistant = appendMessage('assistant', '<span class="italic text-slate-500">Thinking…</span>');
 
-    var payload = JSON.stringify({question: question, conversation_id: getConversationId()});
+    var payload = JSON.stringify({
+      question: question,
+      conversation_id: getConversationId(),
+      images: imagesForRequest.map(function(img){
+        return {media_type: img.media_type, data: img.data};
+      }),
+    });
     var xhr = new XMLHttpRequest();
     currentXhr = xhr;
     xhr.open('POST', '/ask/stream');

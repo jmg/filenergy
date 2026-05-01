@@ -223,6 +223,22 @@ def ask_stream():
     if not question:
         return jsonify(error="Question is required"), 400
 
+    # Optional vision: list of {media_type, data (base64)} dicts. We cap
+    # at 5 images per turn and 5 MB each so a malicious upload can't
+    # blow up the prompt size — Claude's per-message limit handles the
+    # rest, but failing fast here saves a round-trip.
+    images = payload.get("images") or []
+    if not isinstance(images, list):
+        images = []
+    images = [
+        img for img in images
+        if isinstance(img, dict)
+        and isinstance(img.get("media_type"), str)
+        and isinstance(img.get("data"), str)
+        and img["media_type"].startswith("image/")
+        and len(img["data"]) <= 5 * 1024 * 1024  # base64-encoded length
+    ][:5]
+
     if not chat.is_configured():
         return jsonify(error="Chat is not configured"), 503
 
@@ -272,6 +288,7 @@ def ask_stream():
     conv_id = conversation.id
     scope_collection_id = coll_id
     scope_file_id = file_id
+    request_images = images
 
     def generate():
         yield chat._sse("meta", {"conversation_id": conv_id})
@@ -295,6 +312,7 @@ def ask_stream():
         for chunk_str in chat.stream_answer(
             workspace_obj, question, history=history_objs_local,
             collection_id=scope_collection_id, file_id=scope_file_id,
+            images=request_images,
         ):
             yield chunk_str
             if chunk_str.startswith("event: token"):

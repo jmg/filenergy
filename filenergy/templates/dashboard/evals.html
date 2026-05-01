@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Evals · Filenergy{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl space-y-6">
+
+  <div class="flex items-center justify-between">
+    <h2 class="text-2xl font-semibold">Answer quality</h2>
+    <a class="btn btn-ghost" href="{{ url_for('dashboard.index') }}">
+      <svg class="icon"><use href="#i-chart"/></svg>Back to activity
+    </a>
+  </div>
+
+  {% if total == 0 %}
+  <div class="card text-center">
+    <div class="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+      <svg class="icon-lg"><use href="#i-thumbs-up"/></svg>
+    </div>
+    <h3 class="text-base font-semibold">No feedback yet</h3>
+    <p class="mt-1 text-sm text-slate-500">
+      Once members start rating assistant answers from the chat, you'll see
+      a satisfaction score and a triage queue here.
+    </p>
+  </div>
+  {% else %}
+
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="card !p-3">
+      <div class="text-xl font-semibold text-brand-600">{{ total }}</div>
+      <div class="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Ratings</div>
+    </div>
+    <div class="card !p-3">
+      <div class="text-xl font-semibold text-emerald-600">{{ ups }}</div>
+      <div class="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Thumbs up</div>
+    </div>
+    <div class="card !p-3">
+      <div class="text-xl font-semibold text-rose-600">{{ downs }}</div>
+      <div class="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Thumbs down</div>
+    </div>
+    <div class="card !p-3">
+      <div class="text-xl font-semibold text-slate-900">{{ "%.0f"|format(ratio * 100) }}%</div>
+      <div class="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Satisfaction</div>
+    </div>
+  </div>
+
+  {# Stacked daily bar chart: up (emerald) above, down (rose) below the axis. #}
+  {% set max_up = (timeseries | map(attribute="up") | max) or 1 %}
+  {% set max_down = (timeseries | map(attribute="down") | max) or 1 %}
+  {% set max_total = (max_up if max_up >= max_down else max_down) %}
+  <div class="card">
+    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      Daily ratings, last 30 days
+    </div>
+    <div class="mt-3 flex h-32 items-end gap-1">
+      {% for d in timeseries %}
+        <div class="group relative flex-1 flex flex-col-reverse" title="{{ d.date }}: {{ d.up }} up, {{ d.down }} down">
+          <div class="bg-rose-500 rounded-b-sm" style="height: {{ ((d.down / max_total) * 50) | int }}%;"></div>
+          <div class="bg-emerald-500 rounded-t-sm" style="height: {{ ((d.up / max_total) * 50) | int }}%;"></div>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="mt-2 flex gap-4 text-xs text-slate-500">
+      <span class="flex items-center gap-1"><span class="inline-block h-2 w-2 rounded bg-emerald-500"></span>Up</span>
+      <span class="flex items-center gap-1"><span class="inline-block h-2 w-2 rounded bg-rose-500"></span>Down</span>
+    </div>
+  </div>
+
+  {% if recent_downs %}
+  <div class="card">
+    <h3 class="card-title">Recent low-rated answers</h3>
+    <p class="mt-1 text-sm text-slate-500">
+      Triage queue. Click an answer to open the conversation.
+    </p>
+    <ul class="mt-3 divide-y divide-slate-100">
+      {% for fb, msg, conv in recent_downs %}
+      <li class="py-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0 flex-1">
+            <a class="font-medium text-brand-600 hover:underline"
+               href="{{ url_for('ask.view_conversation', conversation_id=conv.id) }}">
+              {{ conv.title or 'Untitled conversation' }}
+            </a>
+            <p class="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-sm text-slate-600">
+              {{ (msg.content or '')[:280] }}{% if msg.content and msg.content|length > 280 %}…{% endif %}
+            </p>
+          </div>
+          <div class="flex flex-shrink-0 flex-col items-end gap-1 text-xs text-slate-400">
+            <span class="pill pill-error">
+              <svg class="icon"><use href="#i-thumbs-down"/></svg>
+            </span>
+            <span>{{ fb.created_at.strftime('%Y-%m-%d') if fb.created_at else '' }}</span>
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

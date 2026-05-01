@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="ui-sans-serif, system-ui, sans-serif">
+  <!-- Background -->
+  <rect width="960" height="600" fill="#f8fafc"/>
+
+  <!-- Top nav -->
+  <rect x="0" y="0" width="960" height="56" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="20" y="18" width="20" height="20" rx="4" fill="#2563eb"/>
+  <text x="48" y="32" font-size="14" font-weight="600" fill="#0f172a">Filenergy</text>
+  <text x="220" y="32" font-size="13" fill="#0f172a" font-weight="500">Ask</text>
+  <text x="280" y="32" font-size="13" fill="#64748b">Files</text>
+  <text x="330" y="32" font-size="13" fill="#64748b">Collections</text>
+  <text x="420" y="32" font-size="13" fill="#64748b">Connectors</text>
+  <text x="510" y="32" font-size="13" fill="#64748b">Dashboard</text>
+  <rect x="640" y="14" width="120" height="28" rx="6" fill="none" stroke="#e2e8f0"/>
+  <text x="652" y="32" font-size="12" fill="#64748b">Search…</text>
+  <rect x="730" y="18" width="22" height="20" rx="4" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="735" y="32" font-size="11" fill="#475569" font-family="monospace">⌘K</text>
+  <rect x="780" y="14" width="56" height="28" rx="999" fill="#dbeafe"/>
+  <text x="794" y="32" font-size="11" font-weight="500" fill="#1e40af">acme</text>
+
+  <!-- Sidebar -->
+  <rect x="0" y="56" width="240" height="544" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="16" y="76" width="208" height="36" rx="8" fill="#2563eb"/>
+  <text x="46" y="99" font-size="13" font-weight="500" fill="#ffffff">+ New conversation</text>
+  <rect x="16" y="124" width="208" height="36" rx="6" fill="none" stroke="#e2e8f0"/>
+  <text x="32" y="146" font-size="12" fill="#94a3b8">Filter…</text>
+  <text x="16" y="186" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">RECENT</text>
+  <rect x="16" y="196" width="208" height="32" rx="6" fill="#f1f5f9"/>
+  <text x="28" y="216" font-size="13" fill="#0f172a" font-weight="500">Q4 contract review</text>
+  <text x="28" y="248" font-size="13" fill="#475569">Onboarding deck feedback</text>
+  <text x="28" y="278" font-size="13" fill="#475569">2026 OKR drafts</text>
+  <text x="28" y="308" font-size="13" fill="#475569">RFP — Acme</text>
+  <text x="28" y="338" font-size="13" fill="#475569">Customer interviews</text>
+
+  <!-- Main thread -->
+  <rect x="260" y="76" width="680" height="44" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="276" y="103" font-size="13" font-weight="500" fill="#0f172a">Q4 contract review</text>
+  <rect x="844" y="86" width="80" height="24" rx="6" fill="none" stroke="#e2e8f0"/>
+  <text x="864" y="102" font-size="11" fill="#475569">Export</text>
+
+  <!-- Thread bubbles -->
+  <rect x="260" y="136" width="680" height="280" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+
+  <!-- User message -->
+  <rect x="320" y="156" width="608" height="46" rx="8" fill="#eff6ff"/>
+  <text x="336" y="184" font-size="13" fill="#1e40af">Summarize the termination clauses across all our SaaS contracts.</text>
+
+  <!-- Assistant message -->
+  <rect x="272" y="216" width="608" height="180" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="288" y="244" font-size="13" fill="#0f172a" font-weight="500">3 of 4 contracts permit termination for convenience with 30 days' notice.</text>
+  <text x="288" y="268" font-size="13" fill="#334155">The Acme MSA additionally allows immediate termination on a material</text>
+  <text x="288" y="288" font-size="13" fill="#334155">breach (§9.2). Notable holdouts:</text>
+  <text x="304" y="312" font-size="13" fill="#334155">• Vendor-X — locks you in for 24 months, no opt-out.</text>
+  <text x="304" y="332" font-size="13" fill="#334155">• OldCo — silent on termination; default common-law rules apply.</text>
+  <text x="288" y="362" font-size="11" fill="#64748b">Sources:</text>
+  <rect x="328" y="350" width="84" height="18" rx="4" fill="#eff6ff"/>
+  <text x="338" y="362" font-size="11" fill="#1e40af">Acme MSA</text>
+  <rect x="420" y="350" width="84" height="18" rx="4" fill="#eff6ff"/>
+  <text x="430" y="362" font-size="11" fill="#1e40af">Vendor-X.pdf</text>
+  <!-- Hover actions -->
+  <g transform="translate(840 370)">
+    <rect width="22" height="22" rx="4" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M9 7h6v8H9z M5 11h6v8H5z" stroke="#94a3b8" stroke-width="1.4" fill="none"/>
+    <rect x="24" width="22" height="22" rx="4" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M30 17v-7l4 8h4l-2-9h-6z" stroke="#10b981" stroke-width="1.4" fill="none"/>
+  </g>
+
+  <!-- Composer -->
+  <rect x="260" y="436" width="680" height="120" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="284" y="466" font-size="13" fill="#94a3b8">Ask anything about your library — paste an image to add vision...</text>
+  <rect x="284" y="476" width="56" height="56" rx="6" fill="#dbeafe" stroke="#bfdbfe"/>
+  <text x="297" y="510" font-size="11" fill="#1e40af">img.png</text>
+  <rect x="824" y="516" width="100" height="32" rx="6" fill="#2563eb"/>
+  <text x="857" y="536" font-size="13" font-weight="500" fill="#ffffff">Send</text>
+  <rect x="754" y="516" width="60" height="32" rx="6" fill="none" stroke="#e2e8f0"/>
+  <text x="772" y="536" font-size="13" fill="#64748b">Stop</text>
+</svg>

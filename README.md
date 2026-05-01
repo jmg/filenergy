@@ -8,6 +8,17 @@ with citations, a programmatic API, and Stripe billing built in.
 Stack: Flask 3 + SQLite, [Voyage](https://www.voyageai.com/) embeddings,
 the Anthropic Claude API for answers, and Stripe Checkout for billing.
 
+## Screenshots
+
+**Chat with citations + vision attachment**
+![Chat](docs/screenshots/chat.svg)
+
+**File library with bulk multi-select**
+![Files](docs/screenshots/files.svg)
+
+**Answer-quality dashboard (thumbs feedback over time + triage queue)**
+![Evals](docs/screenshots/evals.svg)
+
 ## UX
 
 - **Command palette** (⌘K / Ctrl+K / `/`) — quick-jump to any page,

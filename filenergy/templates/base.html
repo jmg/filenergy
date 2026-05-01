@@ -261,6 +261,7 @@
 
       {% if g.user.is_authenticated %}
       var $cmdk = null;
+      var cmdkAbort = null;
       function openCmdK() {
         if ($cmdk) { $cmdk.find('input').focus(); return; }
         $cmdk = $(
@@ -268,7 +269,7 @@
             '<div class="w-full max-w-lg rounded-xl bg-white shadow-2xl animate-slide-up">' +
               '<div class="flex items-center gap-2 border-b border-slate-200 px-3 py-2">' +
                 '<svg class="icon text-slate-400"><use href="#i-search"/></svg>' +
-                '<input type="text" autofocus class="flex-1 border-0 px-2 py-2 text-sm focus:ring-0 focus:outline-none" placeholder="Type a command or jump to a page..." />' +
+                '<input type="text" autofocus class="flex-1 border-0 px-2 py-2 text-sm focus:ring-0 focus:outline-none" placeholder="Search files, conversations, collections..." />' +
                 '<span class="kbd">esc</span>' +
               '</div>' +
               '<ul class="cmdk-results max-h-80 overflow-y-auto py-1 text-sm"></ul>' +
@@ -276,43 +277,40 @@
           '</div>'
         );
         $('body').append($cmdk);
-        var commands = [
-          {label: 'Go to Ask',         href: '/ask/',         icon: 'i-chat'},
-          {label: 'Upload files',      href: '/file/upload/', icon: 'i-upload'},
-          {label: 'Browse files',      href: '/file/list/',   icon: 'i-files'},
-          {label: 'Collections',       href: '/collections/', icon: 'i-folder'},
-          {label: 'Connectors',        href: '/connectors/',  icon: 'i-plug'},
-          {label: 'Dashboard',         href: '/dashboard/',   icon: 'i-chart'},
-          {label: 'Settings: profile', href: '/settings/profile',   icon: 'i-cog'},
-          {label: 'Settings: security',href: '/settings/security',  icon: 'i-cog'},
-          {label: 'Settings: workspace', href: '/settings/workspace', icon: 'i-cog'},
-          {label: 'Audit log',         href: '/audit/',       icon: 'i-files'},
-          {label: 'Sign out',          href: '/user/logout/', icon: 'i-x'},
-        ];
-        function render(filter) {
-          filter = (filter || '').toLowerCase().trim();
-          var matches = filter
-            ? commands.filter(function(c){ return c.label.toLowerCase().indexOf(filter) >= 0; })
-            : commands;
+        function render(items) {
           var $ul = $cmdk.find('.cmdk-results').empty();
-          if (!matches.length) {
+          if (!items.length) {
             $ul.append('<li class="px-4 py-3 text-slate-500">No matches.</li>');
             return;
           }
-          matches.forEach(function(c, i) {
+          items.forEach(function(c, i) {
+            var subtitle = c.subtitle ? '<span class="ml-auto text-xs text-slate-400">' + c.subtitle + '</span>' : '';
             var $li = $(
               '<li>' +
                 '<a href="' + c.href + '" class="flex items-center gap-3 px-4 py-2 ' + (i === 0 ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-50') + '">' +
-                  '<svg class="icon"><use href="#' + c.icon + '"/></svg>' +
-                  '<span>' + c.label + '</span>' +
+                  '<svg class="icon"><use href="#' + (c.icon || 'i-search') + '"/></svg>' +
+                  '<span>' + $('<div>').text(c.label).html() + '</span>' +
+                  subtitle +
                 '</a>' +
               '</li>'
             );
             $ul.append($li);
           });
         }
-        render('');
-        $cmdk.find('input').on('input', function() { render($(this).val()); }).focus();
+        function fetchResults(q) {
+          if (cmdkAbort) cmdkAbort.abort();
+          cmdkAbort = $.ajax({
+            url: '/search', method: 'GET', data: {q: q},
+          }).done(function(resp) { render(resp.results || []); });
+        }
+        // Initial render: nav-only.
+        fetchResults('');
+        var debounceTimer = null;
+        $cmdk.find('input').on('input', function() {
+          var q = $(this).val();
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(function(){ fetchResults(q); }, 120);
+        }).focus();
         $cmdk.find('input').on('keydown', function(e) {
           if (e.key === 'Enter') {
             var first = $cmdk.find('.cmdk-results a').first();
@@ -321,7 +319,10 @@
         });
         $cmdk.on('click', function(e) { if (e.target === this) closeCmdK(); });
       }
-      function closeCmdK() { if ($cmdk) { $cmdk.remove(); $cmdk = null; } }
+      function closeCmdK() {
+        if (cmdkAbort) { cmdkAbort.abort(); cmdkAbort = null; }
+        if ($cmdk) { $cmdk.remove(); $cmdk = null; }
+      }
       $('#cmdk-trigger').on('click', openCmdK);
       $(document).on('keydown', function(e) {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
