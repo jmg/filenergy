@@ -37,6 +37,14 @@ ASK_RATE_WINDOW_SECONDS = int(os.environ.get("FILENERGY_ASK_RATE_WINDOW", 60))
 LOGIN_RATE_LIMIT = int(os.environ.get("FILENERGY_LOGIN_RATE_LIMIT", 10))
 LOGIN_RATE_WINDOW_SECONDS = int(os.environ.get("FILENERGY_LOGIN_RATE_WINDOW", 300))
 
+# Second factor (TOTP / recovery code): a pending login dies after
+# TWO_FACTOR_MAX_ATTEMPTS wrong codes, and an account takes at most
+# TWO_FACTOR_ACCOUNT_LIMIT wrong codes per TWO_FACTOR_ACCOUNT_WINDOW_SECONDS
+# across all its pending logins.
+TWO_FACTOR_MAX_ATTEMPTS = int(os.environ.get("FILENERGY_2FA_MAX_ATTEMPTS", 5))
+TWO_FACTOR_ACCOUNT_LIMIT = int(os.environ.get("FILENERGY_2FA_ACCOUNT_LIMIT", 10))
+TWO_FACTOR_ACCOUNT_WINDOW_SECONDS = int(os.environ.get("FILENERGY_2FA_ACCOUNT_WINDOW", 900))
+
 # When True, run indexing in-line on the request thread. Tests force this on.
 SYNC_INDEXING = os.environ.get("FILENERGY_SYNC_INDEXING", "false").lower() == "true"
 

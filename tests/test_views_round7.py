@@ -131,6 +131,15 @@ def test_callback_unknown_kind_404(auth_client):
     ).status_code == 404
 
 
+def _connect_state(client):
+    """Start the OAuth flow and return the state sent to the provider."""
+    from urllib.parse import parse_qs, urlparse
+
+    r = client.get("/connectors/google_drive/connect", follow_redirects=False)
+    assert r.status_code == 302
+    return parse_qs(urlparse(r.headers["Location"]).query)["state"][0]
+
+
 def test_callback_handles_provider_error(auth_client, monkeypatch, workspace):
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "x")
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "y")
@@ -142,8 +151,9 @@ def test_callback_handles_provider_error(auth_client, monkeypatch, workspace):
     monkeypatch.setattr(
         conn_mod._CONNECTORS["google_drive"], "complete_oauth", boom
     )
+    state = _connect_state(auth_client)
     r = auth_client.get(
-        f"/connectors/google_drive/callback?code=C&state={workspace.id}",
+        f"/connectors/google_drive/callback?code=C&state={state}",
         follow_redirects=False,
     )
     assert r.status_code == 302
@@ -169,8 +179,9 @@ def test_callback_persists_account(auth_client, monkeypatch, workspace):
         return R()
 
     monkeypatch.setattr("urllib.request.urlopen", fake)
+    state = _connect_state(auth_client)
     r = auth_client.get(
-        f"/connectors/google_drive/callback?code=C&state={workspace.id}",
+        f"/connectors/google_drive/callback?code=C&state={state}",
         follow_redirects=False,
     )
     assert r.status_code == 302

@@ -348,6 +348,10 @@ def create_webhook():
     if not url or not url.startswith(("http://", "https://")):
         flash("URL must be http(s)://...", "error")
         return redirect(url_for("settings.webhooks_page"))
+    error = webhooks.validate_url(url)
+    if error:
+        flash(f"Webhook URL not allowed: {error}", "error")
+        return redirect(url_for("settings.webhooks_page"))
     if not selected_events:
         flash("Pick at least one event type", "error")
         return redirect(url_for("settings.webhooks_page"))

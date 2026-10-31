@@ -196,7 +196,9 @@ def test_search_within_workspace(db, user, workspace, app):
     assert {f.name for f in found} == {"mine.txt"}
 
 
-def test_search_anonymous_only_public(db, user, workspace):
+def test_search_without_workspace_finds_nothing(db, user, workspace):
+    """No cross-workspace search, not even of public files: their hash is
+    all it takes to download them."""
     class _Anon:
         is_authenticated = False
 
@@ -205,8 +207,21 @@ def test_search_anonymous_only_public(db, user, workspace):
         File(user_id=user.id, workspace_id=workspace.id, name="private.txt", path="/x", url="u2"),
     ])
     db.session.commit()
-    found = FileService().search(None, _Anon(), "")
-    assert {f.name for f in found} == {"public.txt"}
+    assert FileService().search(None, _Anon(), "") == []
+
+
+def test_search_skips_deleted_and_treats_wildcards_literally(db, user, workspace):
+    from filenergy.models import utcnow
+
+    db.session.add_all([
+        File(user_id=user.id, workspace_id=workspace.id, name="a_b.txt", path="/x", url="u1"),
+        File(user_id=user.id, workspace_id=workspace.id, name="axb.txt", path="/x", url="u2"),
+        File(user_id=user.id, workspace_id=workspace.id, name="a_b-old.txt", path="/x", url="u3",
+             deleted_at=utcnow()),
+    ])
+    db.session.commit()
+    found = FileService().search(workspace, user, "a_b")
+    assert {f.name for f in found} == {"a_b.txt"}
 
 
 def test_async_indexing_routes_through_jobs(db, user, workspace, app, monkeypatch):

@@ -22,6 +22,8 @@ USER_LOGGED_IN = "user.logged_in"
 USER_LOGGED_OUT = "user.logged_out"
 USER_LOGIN_FAILED = "user.login_failed"
 USER_LOGIN_RATE_LIMITED = "user.login_rate_limited"
+USER_2FA_FAILED = "user.2fa_failed"
+USER_2FA_LOCKED = "user.2fa_locked"
 USER_SESSION_REVOKED = "user.session_revoked"
 
 WORKSPACE_CREATED = "workspace.created"

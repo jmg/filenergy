@@ -184,9 +184,11 @@ def download():
 
 
 @file_bp.route("/search/", methods=["POST"])
+@login_required
 def search():
-    workspace = g.workspace if g.user.is_authenticated else None
-    files = FileService().search(workspace, g.user, request.form.get("name", ""))
+    # Only the current workspace. Anonymous search used to list every
+    # public file of every workspace, with the hash that downloads it.
+    files = FileService().search(g.workspace, g.user, request.form.get("name", ""))
     return render_template("file/search.html", files=files)
 
 

@@ -36,17 +36,24 @@ class ConnectorError(RuntimeError):
 
 
 class BaseConnector:
+    """OAuth connectors.
+
+    `state` is an opaque random token minted and checked by the view
+    (views/connectors.py), which also decides the workspace: the provider
+    callback is not trusted to name it.
+    """
+
     kind: str = ""
     label: str = ""
 
     def is_configured(self) -> bool:
         return False
 
-    def authorize_url(self, redirect_uri: str, workspace_id: int) -> str:
+    def authorize_url(self, redirect_uri: str, state: str) -> str:
         raise NotImplementedError
 
     def complete_oauth(
-        self, *, code: str, state: str, redirect_uri: str
+        self, *, code: str, workspace_id: int, redirect_uri: str
     ) -> ConnectorAccount:
         raise NotImplementedError
 
@@ -100,7 +107,7 @@ class GoogleDriveConnector(BaseConnector):
             and os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
         )
 
-    def authorize_url(self, redirect_uri: str, workspace_id: int) -> str:
+    def authorize_url(self, redirect_uri: str, state: str) -> str:
         if not self.is_configured():
             raise ConnectorError("Google OAuth client not configured")
         params = {
@@ -110,19 +117,15 @@ class GoogleDriveConnector(BaseConnector):
             "scope": _DRIVE_SCOPES,
             "access_type": "offline",
             "prompt": "consent",
-            "state": str(workspace_id),
+            "state": state,
         }
         return f"{_GOOGLE_OAUTH_URL}?{urllib.parse.urlencode(params)}"
 
     def complete_oauth(
-        self, *, code: str, state: str, redirect_uri: str
+        self, *, code: str, workspace_id: int, redirect_uri: str
     ) -> ConnectorAccount:
         if not self.is_configured():
             raise ConnectorError("Google OAuth client not configured")
-        try:
-            workspace_id = int(state)
-        except (TypeError, ValueError) as exc:
-            raise ConnectorError("Invalid state") from exc
 
         token = _post_form(_GOOGLE_TOKEN_URL, {
             "code": code,
@@ -282,7 +285,7 @@ class NotionConnector(BaseConnector):
             and os.environ.get("NOTION_OAUTH_CLIENT_SECRET")
         )
 
-    def authorize_url(self, redirect_uri: str, workspace_id: int) -> str:
+    def authorize_url(self, redirect_uri: str, state: str) -> str:
         if not self.is_configured():
             raise ConnectorError("Notion OAuth client not configured")
         params = {
@@ -290,19 +293,15 @@ class NotionConnector(BaseConnector):
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "owner": "user",
-            "state": str(workspace_id),
+            "state": state,
         }
         return f"{_NOTION_OAUTH_URL}?{urllib.parse.urlencode(params)}"
 
     def complete_oauth(
-        self, *, code: str, state: str, redirect_uri: str
+        self, *, code: str, workspace_id: int, redirect_uri: str
     ) -> ConnectorAccount:
         if not self.is_configured():
             raise ConnectorError("Notion OAuth client not configured")
-        try:
-            workspace_id = int(state)
-        except (TypeError, ValueError) as exc:
-            raise ConnectorError("Invalid state") from exc
 
         # Notion uses HTTP Basic auth on the token endpoint.
         import base64
@@ -455,7 +454,7 @@ class DropboxConnector(BaseConnector):
             and os.environ.get("DROPBOX_OAUTH_CLIENT_SECRET")
         )
 
-    def authorize_url(self, redirect_uri: str, workspace_id: int) -> str:
+    def authorize_url(self, redirect_uri: str, state: str) -> str:
         if not self.is_configured():
             raise ConnectorError("Dropbox OAuth client not configured")
         params = {
@@ -463,19 +462,15 @@ class DropboxConnector(BaseConnector):
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "token_access_type": "offline",
-            "state": str(workspace_id),
+            "state": state,
         }
         return f"{_DROPBOX_OAUTH_URL}?{urllib.parse.urlencode(params)}"
 
     def complete_oauth(
-        self, *, code: str, state: str, redirect_uri: str
+        self, *, code: str, workspace_id: int, redirect_uri: str
     ) -> ConnectorAccount:
         if not self.is_configured():
             raise ConnectorError("Dropbox OAuth client not configured")
-        try:
-            workspace_id = int(state)
-        except (TypeError, ValueError) as exc:
-            raise ConnectorError("Invalid state") from exc
 
         token = _post_form(_DROPBOX_TOKEN_URL, {
             "code": code,
@@ -614,7 +609,7 @@ class SlackConnector(BaseConnector):
             and os.environ.get("SLACK_OAUTH_CLIENT_SECRET")
         )
 
-    def authorize_url(self, redirect_uri: str, workspace_id: int) -> str:
+    def authorize_url(self, redirect_uri: str, state: str) -> str:
         if not self.is_configured():
             raise ConnectorError("Slack OAuth client not configured")
         params = {
@@ -622,19 +617,15 @@ class SlackConnector(BaseConnector):
             "redirect_uri": redirect_uri,
             # Read-only bot scopes.
             "scope": "channels:history,channels:read,groups:history,groups:read",
-            "state": str(workspace_id),
+            "state": state,
         }
         return f"{_SLACK_OAUTH_URL}?{urllib.parse.urlencode(params)}"
 
     def complete_oauth(
-        self, *, code: str, state: str, redirect_uri: str
+        self, *, code: str, workspace_id: int, redirect_uri: str
     ) -> ConnectorAccount:
         if not self.is_configured():
             raise ConnectorError("Slack OAuth client not configured")
-        try:
-            workspace_id = int(state)
-        except (TypeError, ValueError) as exc:
-            raise ConnectorError("Invalid state") from exc
 
         token = _post_form(_SLACK_TOKEN_URL, {
             "code": code,

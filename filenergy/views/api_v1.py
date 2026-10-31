@@ -196,8 +196,9 @@ def ask():
 @api_v1_bp.route("/conversations", methods=["GET"])
 @token_required("conversations:read")
 def list_conversations():
+    # A key acts as its user: only that user's chats, like the web UI.
     rows = (
-        Conversation.query.filter_by(workspace_id=g.workspace.id)
+        Conversation.query.filter_by(workspace_id=g.workspace.id, user_id=g.user.id)
         .order_by(Conversation.id.desc())
         .limit(int(request.args.get("limit", 100)))
         .all()
@@ -217,7 +218,7 @@ def list_conversations():
 @token_required("conversations:read")
 def get_conversation(conv_id):
     conv = Conversation.query.filter_by(
-        id=conv_id, workspace_id=g.workspace.id
+        id=conv_id, workspace_id=g.workspace.id, user_id=g.user.id
     ).first()
     if conv is None:
         return jsonify(error="Not found"), 404
@@ -241,7 +242,7 @@ def get_conversation(conv_id):
 @token_required("conversations:write")
 def delete_conversation(conv_id):
     conv = Conversation.query.filter_by(
-        id=conv_id, workspace_id=g.workspace.id
+        id=conv_id, workspace_id=g.workspace.id, user_id=g.user.id
     ).first()
     if conv is None:
         return jsonify(error="Not found"), 404
@@ -360,6 +361,9 @@ def create_webhook():
     event_types = payload.get("events") or []
     if not url or not isinstance(event_types, list):
         return jsonify(error="Missing 'url' or 'events'"), 400
+    error = webhooks.validate_url(url)
+    if error:
+        return jsonify(error=f"Webhook URL not allowed: {error}"), 400
     sub, secret = webhooks.create(g.workspace, url, event_types)
     return jsonify(id=sub.id, secret=secret, events=sub.event_types)
 

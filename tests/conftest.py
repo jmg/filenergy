@@ -133,6 +133,86 @@ def _stub_external_services(monkeypatch):
     _REAL_CHAT_CLIENT.cache_clear()
 
 
+# ---------- outbound HTTP (services/outbound.py) ----------
+#
+# The SSRF guard resolves hosts and opens pinned connections. In tests the
+# guard logic runs for real, but DNS answers a fixed public address for any
+# hostname (IP literals stay as they are, so private ones are still
+# blocked) and the connection goes through `urllib.request.urlopen`, which
+# many tests stub. tests/test_outbound.py exercises the real transport.
+
+_PUBLIC_TEST_IP = "93.184.216.34"
+
+
+def _fake_getaddrinfo(host, port):
+    import ipaddress
+    import socket
+
+    try:
+        address = str(ipaddress.ip_address(host))
+    except ValueError:
+        address = _PUBLIC_TEST_IP
+    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, port))]
+
+
+class _UrlopenResponse:
+    def __init__(self, status, headers, body):
+        from email.message import Message
+        import io
+
+        self.status = status
+        self.msg = Message()
+        for k, v in dict(headers or {}).items():
+            self.msg[k] = v
+        self._buf = io.BytesIO(body or b"")
+
+    def getheader(self, name, default=None):
+        return self.msg.get(name, default)
+
+    def read(self, n=-1):
+        return self._buf.read(n)
+
+
+class _UrlopenConnection:
+    def __init__(self, target, ip, timeout):
+        self.target, self.timeout = target, timeout
+        self._req = None
+
+    def request(self, method, path, body=None, headers=None):
+        import urllib.request
+
+        t = self.target
+        default = {"http": 80, "https": 443}[t.scheme]
+        netloc = t.host if t.port == default else f"{t.host}:{t.port}"
+        self._req = urllib.request.Request(
+            f"{t.scheme}://{netloc}{path}", data=body,
+            headers=dict(headers or {}), method=method,
+        )
+
+    def getresponse(self):
+        import urllib.error
+        import urllib.request
+
+        try:
+            r = urllib.request.urlopen(self._req, timeout=self.timeout)
+        except urllib.error.HTTPError as exc:
+            return _UrlopenResponse(exc.code, {}, b"")
+        return _UrlopenResponse(
+            getattr(r, "status", 200), getattr(r, "headers", {}), r.read(),
+        )
+
+    def close(self):
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _outbound_through_urlopen(monkeypatch):
+    from filenergy.services import outbound
+
+    monkeypatch.setattr(outbound, "_getaddrinfo", _fake_getaddrinfo)
+    monkeypatch.setattr(outbound, "_open", _UrlopenConnection)
+
+
 @pytest.fixture
 def real_emb_client():
     """Yield the un-stubbed embeddings._client and clear its cache."""

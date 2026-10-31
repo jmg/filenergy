@@ -73,15 +73,15 @@ def test_authorize_url_unconfigured_raises(monkeypatch):
     monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_ID", raising=False)
     drive = connectors.get("google_drive")
     with pytest.raises(connectors.ConnectorError):
-        drive.authorize_url("http://x/cb", workspace_id=1)
+        drive.authorize_url("http://x/cb", state="st-1")
 
 
 def test_authorize_url_includes_state_and_scopes(monkeypatch):
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "abc")
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "def")
     drive = connectors.get("google_drive")
-    url = drive.authorize_url("http://x/cb", workspace_id=42)
-    assert "state=42" in url
+    url = drive.authorize_url("http://x/cb", state="st-42")
+    assert "state=st-42" in url
     assert "drive.readonly" in url
     assert "access_type=offline" in url
 
@@ -131,21 +131,12 @@ def test_complete_oauth_persists_account(db, workspace, monkeypatch, app):
     drive = connectors.get("google_drive")
     with app.test_request_context():
         account = drive.complete_oauth(
-            code="C", state=str(workspace.id), redirect_uri="http://x/cb"
+            code="C", workspace_id=workspace.id, redirect_uri="http://x/cb"
         )
     assert account.access_token == "ya29.x"
     assert account.refresh_token == "1//y"
     assert account.account_label == "alice@gmail.com"
     assert account.expires_at is not None
-
-
-def test_complete_oauth_rejects_bad_state(monkeypatch, app):
-    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "x")
-    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "y")
-    drive = connectors.get("google_drive")
-    with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        drive.complete_oauth(code="C", state="not-a-number",
-                              redirect_uri="http://x/cb")
 
 
 def test_complete_oauth_handles_missing_token(monkeypatch, app, workspace):
@@ -157,7 +148,7 @@ def test_complete_oauth_handles_missing_token(monkeypatch, app, workspace):
     drive = connectors.get("google_drive")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
         drive.complete_oauth(
-            code="C", state=str(workspace.id), redirect_uri="http://x/cb"
+            code="C", workspace_id=workspace.id, redirect_uri="http://x/cb"
         )
 
 
@@ -165,7 +156,7 @@ def test_complete_oauth_unconfigured_raises(monkeypatch, app):
     monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_ID", raising=False)
     drive = connectors.get("google_drive")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        drive.complete_oauth(code="C", state="1", redirect_uri="http://x/cb")
+        drive.complete_oauth(code="C", workspace_id=1, redirect_uri="http://x/cb")
 
 
 # ---- token refresh ----

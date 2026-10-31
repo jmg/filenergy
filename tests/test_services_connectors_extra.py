@@ -49,8 +49,8 @@ def test_notion_authorize_url(monkeypatch):
     monkeypatch.setenv("NOTION_OAUTH_CLIENT_ID", "x")
     monkeypatch.setenv("NOTION_OAUTH_CLIENT_SECRET", "y")
     notion = connectors.get("notion")
-    url = notion.authorize_url("http://x/cb", workspace_id=42)
-    assert "state=42" in url
+    url = notion.authorize_url("http://x/cb", state="st-42")
+    assert "state=st-42" in url
     assert "owner=user" in url
     assert "notion.com" in url
 
@@ -59,7 +59,7 @@ def test_notion_authorize_url_unconfigured(monkeypatch):
     monkeypatch.delenv("NOTION_OAUTH_CLIENT_ID", raising=False)
     notion = connectors.get("notion")
     with pytest.raises(connectors.ConnectorError):
-        notion.authorize_url("http://x/cb", workspace_id=1)
+        notion.authorize_url("http://x/cb", state="st-1")
 
 
 def test_notion_complete_oauth(monkeypatch, db, workspace, app):
@@ -74,25 +74,17 @@ def test_notion_complete_oauth(monkeypatch, db, workspace, app):
     notion = connectors.get("notion")
     with app.test_request_context():
         a = notion.complete_oauth(
-            code="C", state=str(workspace.id), redirect_uri="http://x/cb"
+            code="C", workspace_id=workspace.id, redirect_uri="http://x/cb"
         )
     assert a.access_token == "secret_x"
     assert a.account_label == "Acme"
-
-
-def test_notion_complete_oauth_bad_state(monkeypatch, app):
-    monkeypatch.setenv("NOTION_OAUTH_CLIENT_ID", "x")
-    monkeypatch.setenv("NOTION_OAUTH_CLIENT_SECRET", "y")
-    notion = connectors.get("notion")
-    with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        notion.complete_oauth(code="c", state="bad", redirect_uri="x")
 
 
 def test_notion_complete_oauth_unconfigured(monkeypatch, app, workspace):
     monkeypatch.delenv("NOTION_OAUTH_CLIENT_ID", raising=False)
     notion = connectors.get("notion")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        notion.complete_oauth(code="c", state=str(workspace.id), redirect_uri="x")
+        notion.complete_oauth(code="c", workspace_id=workspace.id, redirect_uri="x")
 
 
 def test_notion_complete_oauth_no_token(monkeypatch, app, workspace):
@@ -102,7 +94,7 @@ def test_notion_complete_oauth_no_token(monkeypatch, app, workspace):
     notion = connectors.get("notion")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
         notion.complete_oauth(
-            code="c", state=str(workspace.id), redirect_uri="x"
+            code="c", workspace_id=workspace.id, redirect_uri="x"
         )
 
 
@@ -234,8 +226,8 @@ def test_dropbox_authorize_url(monkeypatch):
     monkeypatch.setenv("DROPBOX_OAUTH_CLIENT_ID", "x")
     monkeypatch.setenv("DROPBOX_OAUTH_CLIENT_SECRET", "y")
     dropbox = connectors.get("dropbox")
-    url = dropbox.authorize_url("http://x/cb", workspace_id=7)
-    assert "state=7" in url
+    url = dropbox.authorize_url("http://x/cb", state="st-7")
+    assert "state=st-7" in url
     assert "token_access_type=offline" in url
 
 
@@ -243,7 +235,7 @@ def test_dropbox_authorize_unconfigured(monkeypatch):
     monkeypatch.delenv("DROPBOX_OAUTH_CLIENT_ID", raising=False)
     dropbox = connectors.get("dropbox")
     with pytest.raises(connectors.ConnectorError):
-        dropbox.authorize_url("http://x/cb", workspace_id=1)
+        dropbox.authorize_url("http://x/cb", state="st-1")
 
 
 def test_dropbox_complete_oauth(monkeypatch, db, workspace, app):
@@ -258,7 +250,7 @@ def test_dropbox_complete_oauth(monkeypatch, db, workspace, app):
     dropbox = connectors.get("dropbox")
     with app.test_request_context():
         a = dropbox.complete_oauth(
-            code="C", state=str(workspace.id), redirect_uri="http://x/cb"
+            code="C", workspace_id=workspace.id, redirect_uri="http://x/cb"
         )
     assert a.access_token == "sl.x"
     assert a.refresh_token == "r.x"
@@ -269,15 +261,7 @@ def test_dropbox_complete_oauth_unconfigured(monkeypatch, app, workspace):
     monkeypatch.delenv("DROPBOX_OAUTH_CLIENT_ID", raising=False)
     dropbox = connectors.get("dropbox")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        dropbox.complete_oauth(code="c", state=str(workspace.id), redirect_uri="x")
-
-
-def test_dropbox_complete_oauth_bad_state(monkeypatch, app):
-    monkeypatch.setenv("DROPBOX_OAUTH_CLIENT_ID", "x")
-    monkeypatch.setenv("DROPBOX_OAUTH_CLIENT_SECRET", "y")
-    dropbox = connectors.get("dropbox")
-    with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        dropbox.complete_oauth(code="c", state="x", redirect_uri="x")
+        dropbox.complete_oauth(code="c", workspace_id=workspace.id, redirect_uri="x")
 
 
 def test_dropbox_complete_oauth_no_token(monkeypatch, app, workspace):
@@ -287,7 +271,7 @@ def test_dropbox_complete_oauth_no_token(monkeypatch, app, workspace):
     dropbox = connectors.get("dropbox")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
         dropbox.complete_oauth(
-            code="c", state=str(workspace.id), redirect_uri="x"
+            code="c", workspace_id=workspace.id, redirect_uri="x"
         )
 
 
@@ -432,8 +416,8 @@ def test_slack_authorize_url(monkeypatch):
     monkeypatch.setenv("SLACK_OAUTH_CLIENT_ID", "x")
     monkeypatch.setenv("SLACK_OAUTH_CLIENT_SECRET", "y")
     slack = connectors.get("slack")
-    url = slack.authorize_url("http://x/cb", workspace_id=3)
-    assert "state=3" in url
+    url = slack.authorize_url("http://x/cb", state="st-3")
+    assert "state=st-3" in url
     assert "channels%3Ahistory" in url
 
 
@@ -456,7 +440,7 @@ def test_slack_complete_oauth(monkeypatch, db, workspace, app):
     slack = connectors.get("slack")
     with app.test_request_context():
         a = slack.complete_oauth(
-            code="c", state=str(workspace.id), redirect_uri="x",
+            code="c", workspace_id=workspace.id, redirect_uri="x",
         )
     assert a.access_token == "xoxb-x"
     assert a.account_label == "Acme Slack"
@@ -466,15 +450,7 @@ def test_slack_complete_oauth_unconfigured(monkeypatch, app, workspace):
     monkeypatch.delenv("SLACK_OAUTH_CLIENT_ID", raising=False)
     slack = connectors.get("slack")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        slack.complete_oauth(code="c", state=str(workspace.id), redirect_uri="x")
-
-
-def test_slack_complete_oauth_bad_state(monkeypatch, app):
-    monkeypatch.setenv("SLACK_OAUTH_CLIENT_ID", "x")
-    monkeypatch.setenv("SLACK_OAUTH_CLIENT_SECRET", "y")
-    slack = connectors.get("slack")
-    with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        slack.complete_oauth(code="c", state="bad", redirect_uri="x")
+        slack.complete_oauth(code="c", workspace_id=workspace.id, redirect_uri="x")
 
 
 def test_slack_complete_oauth_failure_response(monkeypatch, app, workspace):
@@ -485,7 +461,7 @@ def test_slack_complete_oauth_failure_response(monkeypatch, app, workspace):
     ])
     slack = connectors.get("slack")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        slack.complete_oauth(code="c", state=str(workspace.id), redirect_uri="x")
+        slack.complete_oauth(code="c", workspace_id=workspace.id, redirect_uri="x")
 
 
 def test_slack_complete_oauth_no_token(monkeypatch, app, workspace):
@@ -496,7 +472,7 @@ def test_slack_complete_oauth_no_token(monkeypatch, app, workspace):
     ])
     slack = connectors.get("slack")
     with app.test_request_context(), pytest.raises(connectors.ConnectorError):
-        slack.complete_oauth(code="c", state=str(workspace.id), redirect_uri="x")
+        slack.complete_oauth(code="c", workspace_id=workspace.id, redirect_uri="x")
 
 
 def test_slack_sync_writes_transcripts(db, user, workspace, app, monkeypatch):

@@ -1,3 +1,5 @@
+import secrets
+
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for,
 )
@@ -14,6 +16,30 @@ user_bp = Blueprint("user", __name__)
 
 PENDING_2FA_KEY = "pending_2fa_user_id"
 PENDING_2FA_NEXT = "pending_2fa_next"
+# Random id of this pending login. Wrong codes are counted server-side
+# (events table) against it: the session is a cookie the client could
+# replay, so a counter kept in it would reset at will.
+PENDING_2FA_ATTEMPT = "pending_2fa_attempt"
+
+
+def _clear_pending_2fa():
+    for key in (PENDING_2FA_KEY, PENDING_2FA_NEXT, PENDING_2FA_ATTEMPT):
+        session.pop(key, None)
+
+
+def _two_factor_locked(user, attempt_id) -> bool:
+    """Too many wrong codes for this pending login, or for the account."""
+    from filenergy import settings as cfg
+
+    per_login = events.count_recent_with_metadata(
+        events.USER_2FA_FAILED, 24 * 3600, attempt=attempt_id,
+    )
+    if per_login >= cfg.TWO_FACTOR_MAX_ATTEMPTS:
+        return True
+    per_account = events.count_recent(
+        user, events.USER_2FA_FAILED, cfg.TWO_FACTOR_ACCOUNT_WINDOW_SECONDS,
+    )
+    return per_account >= cfg.TWO_FACTOR_ACCOUNT_LIMIT
 
 
 @user_bp.route("/login/")
@@ -59,6 +85,7 @@ def login_post():
         # Defer flask-login until the second factor succeeds.
         session[PENDING_2FA_KEY] = user.id
         session[PENDING_2FA_NEXT] = next_
+        session[PENDING_2FA_ATTEMPT] = secrets.token_urlsafe(16)
         return redirect(url_for("user.two_factor"))
 
     # No 2FA: log in directly.
@@ -116,7 +143,7 @@ def two_factor_webauthn_complete():
         return jsonify({"error": "verification failed"}), 400
 
     next_ = session.pop(PENDING_2FA_NEXT, None) or url_for("index.index")
-    session.pop(PENDING_2FA_KEY, None)
+    _clear_pending_2fa()
     login_user(user)
     from filenergy.services import workspaces
     workspaces.ensure_default_for(user)
@@ -129,11 +156,18 @@ def two_factor_webauthn_complete():
 @user_bp.route("/2fa", methods=["POST"])
 def two_factor_post():
     user_id = session.get(PENDING_2FA_KEY)
-    if not user_id:
+    attempt_id = session.get(PENDING_2FA_ATTEMPT)
+    if not user_id or not attempt_id:
+        _clear_pending_2fa()
         return redirect(url_for("user.login"))
     user = User.query.get(user_id)
     if user is None:
-        session.pop(PENDING_2FA_KEY, None)
+        _clear_pending_2fa()
+        return redirect(url_for("user.login"))
+
+    if _two_factor_locked(user, attempt_id):
+        _clear_pending_2fa()
+        flash("Too many invalid codes. Sign in again in a few minutes.", "error")
         return redirect(url_for("user.login"))
 
     # TOTP or a recovery code only. Passkeys go through
@@ -146,11 +180,18 @@ def two_factor_post():
         or totp.consume_recovery_code(user, code)
     )
     if not ok:
+        events.log_event(events.USER_2FA_FAILED, user=user, attempt=attempt_id)
+        if _two_factor_locked(user, attempt_id):
+            # The pending login is spent: the password has to be typed again.
+            _clear_pending_2fa()
+            events.log_event(events.USER_2FA_LOCKED, user=user)
+            flash("Too many invalid codes. Sign in again in a few minutes.", "error")
+            return redirect(url_for("user.login"))
         flash("Invalid code", "error")
         return redirect(url_for("user.two_factor"))
 
     next_ = session.pop(PENDING_2FA_NEXT, None) or url_for("index.index")
-    session.pop(PENDING_2FA_KEY, None)
+    _clear_pending_2fa()
     login_user(user)
     from filenergy.services import workspaces
     workspaces.ensure_default_for(user)

@@ -16,8 +16,6 @@ import json
 import logging
 import secrets
 from typing import Any
-from urllib import error as urllib_error
-from urllib import request as urllib_request
 
 from filenergy import app, db
 from filenergy.models import (
@@ -25,7 +23,7 @@ from filenergy.models import (
     WebhookSubscription,
     utcnow,
 )
-from filenergy.services import jobs
+from filenergy.services import jobs, outbound
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +32,20 @@ HEADER_SIGNATURE = "X-Filenergy-Signature"
 HEADER_EVENT = "X-Filenergy-Event"
 HEADER_DELIVERY = "X-Filenergy-Delivery"
 TIMEOUT_SECONDS = 10
+
+
+def validate_url(url: str) -> str | None:
+    """Return an error message if `url` can't be a webhook target, else None.
+
+    Same rules as delivery (services/outbound.py): http(s), ports 80/443,
+    and no private/loopback/link-local/metadata address. Delivery checks
+    again every time, since DNS can change after the URL is saved.
+    """
+    try:
+        outbound.check_url(url)
+    except outbound.UnsafeURL as exc:
+        return str(exc)
+    return None
 
 
 def sign(secret: str, payload: bytes) -> str:
@@ -159,12 +171,14 @@ def _deliver_one(subscription_id: int, event_type: str, body: str) -> WebhookDel
 
     transient_failure = False
     try:
-        req = urllib_request.Request(
-            sub.url, data=body_bytes, headers=headers, method="POST"
+        # Guarded POST: public addresses only, no redirects followed
+        # (see services/outbound.py).
+        resp = outbound.request(
+            "POST", sub.url, data=body_bytes, headers=headers,
+            timeout=TIMEOUT_SECONDS, max_bytes=2048, truncate=True,
         )
-        with urllib_request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
-            status = resp.status
-            response_body = resp.read(2048).decode("utf-8", errors="replace")
+        status = resp.status
+        response_body = resp.body.decode("utf-8", errors="replace")
         delivery.response_status = status
         delivery.response_body = response_body
         delivery.delivered_at = utcnow()
@@ -174,18 +188,17 @@ def _deliver_one(subscription_id: int, event_type: str, body: str) -> WebhookDel
             sub.failure_count = (sub.failure_count or 0) + 1
             delivery.error = f"HTTP {status}"
             transient_failure = True
-        elif status >= 400:
+        elif status >= 300:
+            # 3xx included: redirects are not followed, so it wasn't delivered.
             sub.failure_count = (sub.failure_count or 0) + 1
             delivery.error = f"HTTP {status}"
         else:
             sub.failure_count = 0
-    except urllib_error.HTTPError as exc:
-        delivery.response_status = exc.code
-        delivery.error = f"HTTPError {exc.code}"
-        sub.last_status = exc.code
+    except outbound.UnsafeURL as exc:
+        # Not transient: retrying won't make a private address public.
+        delivery.error = f"Blocked: {exc}"[:500]
         sub.last_attempt_at = utcnow()
         sub.failure_count = (sub.failure_count or 0) + 1
-        transient_failure = exc.code >= 500
     except Exception as exc:
         delivery.error = str(exc)[:500]
         sub.last_attempt_at = utcnow()

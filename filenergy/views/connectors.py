@@ -1,11 +1,55 @@
 """Connector OAuth + sync routes."""
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
+import hmac
+import secrets
+import time
+
+from flask import (
+    Blueprint, abort, flash, g, redirect, render_template, request, session, url_for,
+)
 from flask_login import login_required
 
-from filenergy.models import ConnectorAccount
+from filenergy.models import ConnectorAccount, Workspace
 from filenergy.services import connectors, events, workspaces
 
 connectors_bp = Blueprint("connectors", __name__)
+
+# Pending OAuth flows of this browser session: {state: {kind, workspace_id,
+# user_id, exp}}. The state sent to the provider is random and single-use;
+# the callback takes the workspace from here, never from the provider, and
+# checks the user can still manage it.
+OAUTH_STATES_KEY = "connector_oauth_states"
+OAUTH_STATE_TTL = 600
+_MAX_PENDING = 5
+
+
+def _remember_state(kind, workspace_id, user_id) -> str:
+    now = int(time.time())
+    pending = {
+        k: v for k, v in (session.get(OAUTH_STATES_KEY) or {}).items()
+        if isinstance(v, dict) and v.get("exp", 0) > now
+    }
+    while len(pending) >= _MAX_PENDING:
+        pending.pop(min(pending, key=lambda k: pending[k]["exp"]))
+    state = secrets.token_urlsafe(32)
+    pending[state] = {
+        "kind": kind, "workspace_id": workspace_id,
+        "user_id": user_id, "exp": now + OAUTH_STATE_TTL,
+    }
+    session[OAUTH_STATES_KEY] = pending
+    return state
+
+
+def _take_state(state):
+    """Pop and return the pending flow for `state` (None if unknown/expired)."""
+    pending = dict(session.get(OAUTH_STATES_KEY) or {})
+    match = None
+    for key in list(pending):
+        if hmac.compare_digest(key.encode(), (state or "").encode()):
+            match = pending.pop(key)
+    session[OAUTH_STATES_KEY] = pending
+    if not isinstance(match, dict) or match.get("exp", 0) <= time.time():
+        return None
+    return match
 
 
 @connectors_bp.route("/")
@@ -30,8 +74,9 @@ def connect(kind):
         flash(f"{conn.label} OAuth client is not configured on this server.", "error")
         return redirect(url_for("connectors.index"))
     redirect_uri = url_for("connectors.callback", kind=kind, _external=True)
+    state = _remember_state(kind, g.workspace.id, g.user.id)
     try:
-        return redirect(conn.authorize_url(redirect_uri, g.workspace.id))
+        return redirect(conn.authorize_url(redirect_uri, state))
     except connectors.ConnectorError as exc:
         flash(str(exc), "error")
         return redirect(url_for("connectors.index"))
@@ -48,9 +93,24 @@ def callback(kind):
     if not code or not state:
         flash("Missing code/state from OAuth callback.", "error")
         return redirect(url_for("connectors.index"))
+    pending = _take_state(state)
+    if (
+        pending is None
+        or pending.get("kind") != kind
+        or pending.get("user_id") != g.user.id
+    ):
+        flash("This connection link is invalid or expired. Start again.", "error")
+        return redirect(url_for("connectors.index"))
+    workspace = Workspace.query.get(pending.get("workspace_id"))
+    if workspace is None or not workspaces.require_role(
+        workspace, g.user, "owner", "admin"
+    ):
+        return "Forbidden", 403
     redirect_uri = url_for("connectors.callback", kind=kind, _external=True)
     try:
-        conn.complete_oauth(code=code, state=state, redirect_uri=redirect_uri)
+        conn.complete_oauth(
+            code=code, workspace_id=workspace.id, redirect_uri=redirect_uri,
+        )
     except connectors.ConnectorError as exc:
         flash(f"Connection failed: {exc}", "error")
         return redirect(url_for("connectors.index"))

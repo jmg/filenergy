@@ -284,15 +284,24 @@ class FileService(BaseService):
             return fd.read()
 
     def search(self, workspace, user, file_name):
-        """Within a workspace: name match across files visible to user.
+        """Name match across the (non-deleted) files of one workspace.
 
-        Anonymous callers (workspace=None) only see public files.
+        No workspace, no results: there is no cross-workspace search, not
+        even of public files (their hash is all it takes to download them).
         """
-        like = File.name.like(f"%{file_name}%")
         if workspace is None:
-            return File.query.filter(File.is_public.is_(True), like).all()
+            return []
+        escaped = (
+            (file_name or "").replace("\\", "\\\\")
+            .replace("%", "\\%").replace("_", "\\_")
+        )
+        like = File.name.like(f"%{escaped}%", escape="\\")
         return (
-            File.query.filter(File.workspace_id == workspace.id, like).all()
+            File.query.filter(
+                File.workspace_id == workspace.id,
+                File.deleted_at.is_(None),
+                like,
+            ).all()
         )
 
 

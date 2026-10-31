@@ -10,13 +10,11 @@ import logging
 import re
 import threading
 from html.parser import HTMLParser
-from urllib import error as urllib_error
-from urllib import request as urllib_request
 from urllib.parse import urlparse
 
 from filenergy import app, db, settings
 from filenergy.models import File
-from filenergy.services import events
+from filenergy.services import events, outbound
 from filenergy.services.file import FileService, storage_path_for
 
 log = logging.getLogger(__name__)
@@ -24,6 +22,7 @@ log = logging.getLogger(__name__)
 
 _FETCH_TIMEOUT = 15
 _MAX_BYTES = 10 * 1024 * 1024  # cap remote pages at 10 MB
+_MAX_REDIRECTS = 3  # each hop is re-checked by outbound.request
 _USER_AGENT = "Filenergy/1 (+https://filenergy.dev)"
 
 
@@ -92,21 +91,26 @@ def fetch_url(url: str) -> tuple[str, str, str]:
     content type. Strips HTML for the indexable text but stores the raw
     document on disk.
     """
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise IngestionError("Only http(s) URLs are supported")
-    req = urllib_request.Request(url, headers={"User-Agent": _USER_AGENT})
+    # Guarded fetch: public addresses only, ports 80/443, every redirect
+    # re-checked, size and time capped (see services/outbound.py).
     try:
-        with urllib_request.urlopen(req, timeout=_FETCH_TIMEOUT) as resp:
-            ctype = (resp.headers.get("Content-Type") or "").split(";", 1)[0].strip()
-            data = resp.read(_MAX_BYTES + 1)
-    except urllib_error.HTTPError as exc:
-        raise IngestionError(f"Remote returned HTTP {exc.code}") from exc
-    except Exception as exc:
+        resp = outbound.request(
+            "GET", url, headers={"User-Agent": _USER_AGENT},
+            timeout=_FETCH_TIMEOUT, max_bytes=_MAX_BYTES,
+            max_redirects=_MAX_REDIRECTS,
+        )
+    except outbound.UnsafeURL as exc:
+        raise IngestionError(str(exc)) from exc
+    except outbound.ResponseTooLarge as exc:
+        raise IngestionError("Page exceeds 10 MB limit") from exc
+    except outbound.OutboundError as exc:
         raise IngestionError(f"Failed to fetch URL: {exc}") from exc
-
-    if len(data) > _MAX_BYTES:
-        raise IngestionError("Page exceeds 10 MB limit")
+    if resp.status in outbound.REDIRECT_STATUSES:
+        raise IngestionError("Too many redirects")
+    if resp.status >= 400:
+        raise IngestionError(f"Remote returned HTTP {resp.status}")
+    ctype = (resp.headers.get("Content-Type") or "").split(";", 1)[0].strip()
+    data = resp.body
 
     if not ctype.startswith(("text/", "application/json", "application/xml")):
         raise IngestionError(f"Unsupported content type: {ctype}")
