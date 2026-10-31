@@ -27,6 +27,12 @@ from filenergy.models import (
 SESSION_KEY = "current_workspace_id"
 INVITE_TTL_DAYS = 14
 
+_ROLE_RANK = {"member": 1, "admin": 2, "owner": 3}
+
+
+class InvitationNotAllowed(PermissionError):
+    """The inviter can't invite, or can't grant the requested role."""
+
 
 def slugify(name: str) -> str:
     base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "workspace"
@@ -117,8 +123,17 @@ def require_role(workspace: Workspace, user: User, *roles: str) -> bool:
 
 
 def invite(workspace: Workspace, inviter: User, email: str, role: str = "member") -> WorkspaceInvitation:
+    """Create an invitation. Only owners and admins invite, and never into
+    a role above their own (`InvitationNotAllowed`)."""
     if role not in ("member", "admin"):
         role = "member"
+    inviter_role = role_of(workspace, inviter)
+    if inviter_role not in ("owner", "admin"):
+        raise InvitationNotAllowed("Only owners and admins can invite.")
+    if _ROLE_RANK[role] > _ROLE_RANK[inviter_role]:
+        raise InvitationNotAllowed(
+            f"An {inviter_role} can't invite someone as {role}."
+        )
     inv = WorkspaceInvitation(
         workspace_id=workspace.id,
         email=email.strip().lower(),
@@ -161,7 +176,10 @@ def accept_invitation(token: str, user: User) -> Optional[Workspace]:
 
 
 def remove_member(workspace: Workspace, user_id: int) -> bool:
-    """Remove a member. Cannot remove the owner."""
+    """Remove a member and revoke their API keys here. Cannot remove the
+    owner."""
+    from filenergy.services import api_keys
+
     if workspace.owner_id == user_id:
         return False
     m = WorkspaceMember.query.filter_by(
@@ -170,6 +188,7 @@ def remove_member(workspace: Workspace, user_id: int) -> bool:
     if m is None:
         return False
     db.session.delete(m)
+    api_keys.revoke_for_member(workspace.id, user_id)
     db.session.commit()
     return True
 

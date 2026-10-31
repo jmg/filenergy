@@ -5,7 +5,7 @@ from flask import Blueprint, g, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from filenergy import db
-from filenergy.services.file import FileService
+from filenergy.services.file import FileService, storage_path_for
 
 onboarding_bp = Blueprint("onboarding", __name__)
 
@@ -59,13 +59,11 @@ def index():
 @login_required
 def seed():
     """Drop the sample files into the workspace and index them."""
-    import os
-    from filenergy import settings as cfg
-
-    os.makedirs(cfg.UPLOAD_DIR, exist_ok=True)
     svc = FileService()
     for name, body in _SAMPLE_FILES:
-        path = os.path.join(cfg.UPLOAD_DIR, f"sample-{name}")
+        # Each workspace gets its own copy: a shared `sample-<name>` was
+        # removed for everyone the first time any workspace deleted it.
+        path = storage_path_for(g.workspace.id, name)
         with open(path, "wb") as fd:
             fd.write(body)
         f = svc._persist_upload(

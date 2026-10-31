@@ -16,14 +16,14 @@
              placeholder="What's this key for?" required>
     </div>
     <div>
-      <div class="label">Scopes (leave all unchecked for full access)</div>
+      <div class="label">Scopes (leave all unchecked for everything your role allows)</div>
       <div class="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
         {% for scope in ['files:read','files:write','ask:read','ask:write',
                           'collections:read','collections:write',
                           'conversations:read','conversations:write',
                           'webhooks:read','webhooks:write',
                           'members:read','members:write',
-                          'share_links:write'] %}
+                          'share_links:write'] if scope in allowed_scopes %}
           <label class="flex items-center gap-2">
             <input type="checkbox" name="scopes" value="{{ scope }}"
                    class="rounded border-slate-300">
@@ -68,7 +68,7 @@
             {{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else '—' }}
           </td>
           <td class="text-right">
-            {% if k.is_active %}
+            {% if k.is_active and (my_role in ('owner', 'admin') or k.user_id == g.user.id) %}
               <form method="POST"
                     action="{{ url_for('settings.revoke_key', key_id=k.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

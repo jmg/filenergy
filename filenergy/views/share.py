@@ -7,7 +7,7 @@ import mimetypes
 from flask import Blueprint, abort, make_response, render_template
 
 from filenergy.services import events, share_links
-from filenergy.services.file import FileService
+from filenergy.services.file import FileService, attachment_disposition
 
 share_bp = Blueprint("share", __name__)
 
@@ -30,8 +30,8 @@ def download(token):
     response = make_response(content)
     mime, _ = mimetypes.guess_type(db_file.name)
     response.headers["Content-Type"] = mime or "application/octet-stream"
-    response.headers["Content-Disposition"] = (
-        f'attachment; filename="{db_file.name}"'
+    response.headers["Content-Disposition"] = attachment_disposition(
+        db_file.name
     )
     share_links.record_download(link)
     events.log_event(

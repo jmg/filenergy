@@ -35,6 +35,7 @@ from flask import Blueprint, jsonify, request
 
 from filenergy import db
 from filenergy.models import User, Workspace, WorkspaceMember, utcnow
+from filenergy.services import api_keys
 
 scim_bp = Blueprint("scim", __name__)
 
@@ -254,6 +255,7 @@ def replace_user(user_id):
         # IdP marks the user inactive → remove the membership but keep
         # the user row (data, audit, GDPR).
         db.session.delete(member)
+        api_keys.revoke_for_member(ws.id, user.id)
         db.session.commit()
         return jsonify(_user_to_scim(user, ws, role=member.role))
 
@@ -292,6 +294,7 @@ def patch_user(user_id):
             )
             if active is False:
                 db.session.delete(member)
+                api_keys.revoke_for_member(ws.id, user.id)
                 db.session.commit()
                 return jsonify(_user_to_scim(user, ws, role=member.role))
     return jsonify(_user_to_scim(user, ws, role=member.role))
@@ -308,5 +311,6 @@ def delete_user(user_id):
     member = _existing_membership(ws, user)
     if member is not None:
         db.session.delete(member)
+        api_keys.revoke_for_member(ws.id, user.id)
         db.session.commit()
     return "", 204

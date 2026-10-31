@@ -2,10 +2,13 @@
 
 Three layers:
 
-1. **Stub** (`register_stub`, `verify_assertion_stub`) — synthetic enrol
-   that records a `WebAuthnCredential` row without doing the FIDO2
-   ceremony. Useful for tests, deployments without the `webauthn`
-   package, and as a fallback at /user/2fa when the JS hasn't run.
+1. **Stub** (`register_stub`) — synthetic enrol that records a
+   `WebAuthnCredential` row (public_key="stub") without the FIDO2
+   ceremony. Test fixture only: no route creates one any more, a stub
+   can never pass `complete_authentication`, and it doesn't count as a
+   second factor (`has_credential`). There is no stub *verification*:
+   accepting a bare credential id let anyone holding the password log in,
+   since /user/2fa/webauthn/begin hands that id out.
 
 2. **Full ceremony** (`begin_registration`, `complete_registration`,
    `begin_authentication`, `complete_authentication`) — drives the
@@ -56,10 +59,12 @@ def is_supported() -> bool:
     """Whether the UI should expose the passkey enrolment form.
 
     Self-hosted operators can disable the experience entirely with
-    `FILENERGY_WEBAUTHN_DISABLED=true`. The stub flow works without
-    `py_webauthn` installed; only the full ceremony requires it.
+    `FILENERGY_WEBAUTHN_DISABLED=true`.
     """
     return os.environ.get("FILENERGY_WEBAUTHN_DISABLED", "").lower() != "true"
+
+
+STUB_PUBLIC_KEY = "stub"
 
 
 def list_for_user(user) -> list[WebAuthnCredential]:
@@ -71,12 +76,21 @@ def list_for_user(user) -> list[WebAuthnCredential]:
     )
 
 
+def _verifiable(user):
+    """Credentials enrolled through the real ceremony (they carry a public
+    key a signature can be checked against)."""
+    return WebAuthnCredential.query.filter(
+        WebAuthnCredential.user_id == user.id,
+        WebAuthnCredential.public_key.isnot(None),
+        WebAuthnCredential.public_key != STUB_PUBLIC_KEY,
+    )
+
+
 def has_credential(user) -> bool:
+    """Whether the user has a passkey that works as a second factor."""
     if user is None or not getattr(user, "id", None):
         return False
-    return WebAuthnCredential.query.filter_by(
-        user_id=user.id
-    ).first() is not None
+    return _verifiable(user).first() is not None
 
 
 def delete(user, cred_id: int) -> bool:
@@ -96,35 +110,20 @@ def delete(user, cred_id: int) -> bool:
 
 
 def register_stub(user, *, label: str) -> WebAuthnCredential:
-    """Synthetic enrolment used by the simple "register a key" form."""
+    """Synthetic enrolment for tests. The row can't authenticate."""
     if not is_supported():
         raise WebAuthnError("WebAuthn is disabled on this instance.")
     cred_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
     cred = WebAuthnCredential(
         user_id=user.id,
         credential_id=cred_id,
-        public_key="stub",
+        public_key=STUB_PUBLIC_KEY,
         sign_count=0,
         label=label[:120],
     )
     db.session.add(cred)
     db.session.commit()
     return cred
-
-
-def verify_assertion_stub(user, credential_id: str) -> bool:
-    """Mark `credential_id` as used. Real verification is in
-    `complete_authentication` — the stub is enough for tests / fallback.
-    """
-    cred = WebAuthnCredential.query.filter_by(
-        user_id=user.id, credential_id=credential_id
-    ).first()
-    if cred is None:
-        return False
-    cred.sign_count = (cred.sign_count or 0) + 1
-    cred.last_used_at = utcnow()
-    db.session.commit()
-    return True
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +248,7 @@ def begin_authentication(user) -> dict[str, Any]:
     import webauthn as wa
     from webauthn.helpers.structs import PublicKeyCredentialDescriptor
 
-    creds = list_for_user(user)
+    creds = _verifiable(user).order_by(WebAuthnCredential.id.asc()).all()
     if not creds:
         raise WebAuthnError("User has no registered credentials.")
 
@@ -280,13 +279,15 @@ def complete_authentication(user, *, response: dict[str, Any]) -> bool:
     if not challenge_b64:
         raise WebAuthnError("No authentication challenge in session.")
 
+    if not isinstance(response, dict):
+        return False
     raw_id_b64 = response.get("id") or response.get("rawId")
     if not raw_id_b64:
         return False
     cred = WebAuthnCredential.query.filter_by(
         user_id=user.id, credential_id=raw_id_b64,
     ).first()
-    if cred is None or cred.public_key == "stub":
+    if cred is None or not cred.public_key or cred.public_key == STUB_PUBLIC_KEY:
         return False
 
     import webauthn as wa

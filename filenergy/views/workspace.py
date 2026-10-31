@@ -41,7 +41,11 @@ def invite():
     if not addr:
         flash("Email is required", "error")
         return redirect(url_for("settings.workspace"))
-    inv = workspaces.invite(g.workspace, g.user, addr, role)
+    try:
+        inv = workspaces.invite(g.workspace, g.user, addr, role)
+    except workspaces.InvitationNotAllowed as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("settings.workspace"))
     accept_url = url_for("workspace.accept", token=inv.token, _external=True)
     email_service.send(
         to=addr,

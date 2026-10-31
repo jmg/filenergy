@@ -136,18 +136,18 @@ def two_factor_post():
         session.pop(PENDING_2FA_KEY, None)
         return redirect(url_for("user.login"))
 
+    # TOTP or a recovery code only. Passkeys go through
+    # /2fa/webauthn/complete, which checks the signed assertion; a bare
+    # `webauthn_credential_id` here used to be accepted on sight, and
+    # /2fa/webauthn/begin gives that id to whoever has the password.
     code = (request.form.get("code") or "").strip()
-    webauthn_id = (request.form.get("webauthn_credential_id") or "").strip()
-    ok = (
+    ok = bool(code) and (
         totp.verify_otp(user, code)
         or totp.consume_recovery_code(user, code)
-        or (webauthn_id and webauthn.verify_assertion_stub(user, webauthn_id))
     )
     if not ok:
         flash("Invalid code", "error")
         return redirect(url_for("user.two_factor"))
-    if webauthn_id:
-        events.log_event(events.WEBAUTHN_VERIFIED, user=user)
 
     next_ = session.pop(PENDING_2FA_NEXT, None) or url_for("index.index")
     session.pop(PENDING_2FA_KEY, None)

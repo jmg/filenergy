@@ -6,9 +6,7 @@ mime)` triple and hand it to `materialize_blob`.
 """
 from __future__ import annotations
 
-import hashlib
 import logging
-import os
 import re
 import threading
 from html.parser import HTMLParser
@@ -19,7 +17,7 @@ from urllib.parse import urlparse
 from filenergy import app, db, settings
 from filenergy.models import File
 from filenergy.services import events
-from filenergy.services.file import FileService
+from filenergy.services.file import FileService, storage_path_for
 
 log = logging.getLogger(__name__)
 
@@ -137,12 +135,12 @@ def materialize_blob(
     pre_extracted_text: str | None = None,
 ) -> File:
     """Write a remote/synthetic blob to disk and persist a File row."""
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     base_name = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-") or "ingested"
-    digest = hashlib.sha1(content).hexdigest()[:8]
-    safe_name = f"{digest}-{base_name}"
-    path = os.path.join(settings.UPLOAD_DIR, safe_name)
-    with open(path, "wb") as fd:
+    # Own file per row: a content-derived name was shared by every
+    # workspace that ingested the same bytes, and deleting one removed it
+    # for all of them.
+    path = storage_path_for(workspace.id, base_name)
+    with open(path, "xb") as fd:
         fd.write(content)
 
     db_file = FileService()._persist_upload(

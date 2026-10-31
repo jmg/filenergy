@@ -71,12 +71,12 @@
 </section>
 
 <script>
-// Progressive enhancement: if the browser exposes navigator.credentials.create,
-// run the real FIDO2 ceremony. Otherwise we fall back to the form POST that
-// records a stub credential — works in tests, headless deploys, and old browsers.
+// Passkeys are enrolled only through the real FIDO2 ceremony. Without
+// navigator.credentials.create there is nothing to register.
 (function() {
   if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) {
-    return; // graceful fallback to stub form
+    $('#webauthn-form button').prop('disabled', true).text('Browser does not support passkeys');
+    return;
   }
   function b64urlToBuf(s) {
     s = s.replace(/-/g, '+').replace(/_/g, '/');

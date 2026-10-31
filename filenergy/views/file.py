@@ -5,7 +5,7 @@ from flask_login import login_required
 
 from filenergy.models import File
 from filenergy.services import billing, collections, events, ingestion, share_links
-from filenergy.services.file import FileService
+from filenergy.services.file import FileService, attachment_disposition
 
 file_bp = Blueprint("file", __name__)
 
@@ -30,6 +30,8 @@ def from_url():
         record = api_keys.verify(token) if token else None
         if record is None:
             return jsonify(error="Authentication required"), 401
+        if not api_keys.allows(record, "files:write"):
+            return jsonify(error="Missing scope: files:write"), 403
         user, workspace = record.user, record.workspace
 
     url = (request.form.get("url") or "").strip()
@@ -168,8 +170,8 @@ def download():
     response = make_response(content)
     mime, _ = mimetypes.guess_type(db_file.name)
     response.headers["Content-Type"] = mime or "application/octet-stream"
-    response.headers["Content-Disposition"] = (
-        f'attachment; filename="{db_file.name}"'
+    response.headers["Content-Disposition"] = attachment_disposition(
+        db_file.name
     )
     events.log_event(
         events.FILE_DOWNLOADED,

@@ -2,6 +2,10 @@ import hashlib
 import json
 import logging
 import os
+import re
+import secrets
+import uuid
+from urllib.parse import quote
 
 from filenergy import app, db, settings
 from filenergy.models import Chunk, File, utcnow
@@ -11,19 +15,83 @@ from filenergy.services.base import BaseService
 log = logging.getLogger(__name__)
 
 
+# Extension kept on the stored file: extraction and OCR pick their parser
+# by it. Lower-case letters and digits only, so it can't carry a separator.
+_SAFE_EXT = re.compile(r"^\.[a-z0-9]{1,16}$")
+
+
+def storage_path_for(workspace_id: int, original_name: str) -> str:
+    """A fresh on-disk location for a new upload.
+
+    `<UPLOAD_DIR>/<workspace_id>/<uuid4><ext>`: nothing in it comes from the
+    uploader but a sanitised extension. Uploads used to land at
+    `<UPLOAD_DIR>/<original name>`, shared by every account, so uploading a
+    name someone else had used overwrote their file, served it back under
+    your own row, and deleting your row removed theirs. The original name
+    lives only in `File.name`, for display and the download header.
+    """
+    ext = os.path.splitext(original_name or "")[1].lower()
+    if not _SAFE_EXT.match(ext):
+        ext = ""
+    directory = os.path.join(settings.UPLOAD_DIR, str(int(workspace_id)))
+    os.makedirs(directory, exist_ok=True)
+    return os.path.join(directory, uuid.uuid4().hex + ext)
+
+
+def new_url_token() -> str:
+    """Random handle for `/file/download/?h=`. It used to be sha256(id),
+    which anyone could compute for every id and so reach every public file."""
+    return secrets.token_urlsafe(32)
+
+
+def _legacy_url(file_id) -> str:
+    return hashlib.sha256(str(file_id).encode("utf-8")).hexdigest()
+
+
+def rotate_legacy_urls() -> int:
+    """Give rows saved with a sha256(id) handle a random one. Runs at
+    startup; idempotent, and only 64-char handles are even looked at
+    (random ones are 43). Old links to those files stop working, which is
+    the point: they were guessable."""
+    rotated = 0
+    for f in File.query.filter(db.func.length(File.url) == 64).all():
+        if f.url == _legacy_url(f.id):
+            f.url = new_url_token()
+            rotated += 1
+    if rotated:
+        db.session.commit()
+    return rotated
+
+
+def attachment_disposition(name: str) -> str:
+    """`Content-Disposition` for a download under its original name.
+
+    The name is user-supplied (upload, rename), so the quoted fallback keeps
+    printable ASCII without quotes or backslashes and the full name goes in
+    RFC 5987 `filename*`.
+    """
+    name = name or "download"
+    fallback = "".join(
+        c if 32 <= ord(c) < 127 and c not in '"\\' else "_" for c in name
+    )
+    return (
+        f'attachment; filename="{fallback}"; '
+        f"filename*=UTF-8''{quote(name, safe='')}"
+    )
+
+
 class FileService(BaseService):
 
     entity = File
 
     def save_file(self, request, user, workspace, *, sync_index=None):
-        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-
         file_obj = request.files.get("files[]")
         if file_obj is None:
             return json.dumps([])
 
-        safe_name = os.path.basename(file_obj.filename or "upload")
-        file_path = os.path.join(settings.UPLOAD_DIR, safe_name)
+        # Display name only; the bytes go to a path of our own choosing.
+        safe_name = os.path.basename(file_obj.filename or "") or "upload"
+        file_path = storage_path_for(workspace.id, safe_name)
         file_obj.save(file_path)
 
         is_public = request.form.get("is_public", "").lower() == "true"
@@ -71,11 +139,8 @@ class FileService(BaseService):
         }])
 
     def _persist_upload(self, **params):
+        params.setdefault("url", new_url_token())
         db_file = self.new(**params)
-        db.session.add(db_file)
-        db.session.commit()
-
-        db_file.url = hashlib.sha256(str(db_file.id).encode("utf-8")).hexdigest()
         db.session.add(db_file)
         db.session.commit()
         return db_file
@@ -185,8 +250,14 @@ class FileService(BaseService):
             db.session.rollback()
             return False
 
+        # Rows written before per-upload paths may share one file on disk
+        # (same original name). Only remove it once no row points at it.
         try:
-            if path and os.path.exists(path):
+            if (
+                path
+                and File.query.filter(File.path == path).first() is None
+                and os.path.exists(path)
+            ):
                 os.remove(path)
         except OSError:
             pass

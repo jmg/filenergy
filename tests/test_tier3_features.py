@@ -175,8 +175,20 @@ def test_require_2fa_lets_through_users_with_totp(
 
 
 def test_require_2fa_lets_through_users_with_webauthn(
+    auth_client, db, workspace, user, passkey,
+):
+    workspace.require_2fa = True
+    db.session.commit()
+    passkey.enroll(db, user, label="YubiKey")
+
+    r = auth_client.get("/file/list/")
+    assert r.status_code == 200
+
+
+def test_require_2fa_not_satisfied_by_stub_credential(
     auth_client, db, workspace, user,
 ):
+    """A stub row has no key behind it: it isn't a second factor."""
     from filenergy.services import webauthn
 
     workspace.require_2fa = True
@@ -184,7 +196,8 @@ def test_require_2fa_lets_through_users_with_webauthn(
     webauthn.register_stub(user, label="YubiKey")
 
     r = auth_client.get("/file/list/")
-    assert r.status_code == 200
+    assert r.status_code == 302
+    assert "/settings/security" in r.headers["Location"]
 
 
 def test_require_2fa_security_page_still_reachable(auth_client, db, workspace):
@@ -277,49 +290,35 @@ def test_notifications_endpoint_persists_choice(auth_client, db, user):
 
 
 def test_register_stub_creates_credential(db, user):
+    """Stub rows exist for tests but never count as a second factor."""
     from filenergy.services import webauthn
 
     cred = webauthn.register_stub(user, label="YubiKey 5")
     assert cred.id
     assert cred.user_id == user.id
     assert cred.label == "YubiKey 5"
-    assert webauthn.has_credential(user) is True
+    assert webauthn.has_credential(user) is False
 
 
-def test_register_endpoint_creates_credential(auth_client, db, user):
+def test_register_endpoint_no_longer_creates_stub(auth_client, db, user):
+    """The no-JS form used to enrol a keyless "stub" credential."""
     r = auth_client.post(
         "/settings/security/webauthn",
         data={"label": "Macbook Touch ID"},
     )
     assert r.status_code == 302
     from filenergy.models import WebAuthnCredential
-    creds = WebAuthnCredential.query.filter_by(user_id=user.id).all()
-    assert len(creds) == 1
-    assert creds[0].label == "Macbook Touch ID"
+    assert WebAuthnCredential.query.filter_by(user_id=user.id).count() == 0
 
 
-def test_delete_endpoint_removes_credential(auth_client, db, user):
+def test_delete_endpoint_removes_credential(auth_client, db, user, passkey):
     from filenergy.services import webauthn
 
-    cred = webauthn.register_stub(user, label="Backup key")
+    cred = passkey.enroll(db, user, label="Backup key")
+    assert webauthn.has_credential(user) is True
     r = auth_client.post(f"/settings/security/webauthn/{cred.id}/delete")
     assert r.status_code == 302
     assert webauthn.has_credential(user) is False
-
-
-def test_verify_assertion_stub_increments_sign_count(db, user):
-    from filenergy.services import webauthn
-
-    cred = webauthn.register_stub(user, label="Key")
-    assert webauthn.verify_assertion_stub(user, cred.credential_id) is True
-    db.session.refresh(cred)
-    assert cred.sign_count == 1
-
-
-def test_verify_assertion_stub_rejects_unknown(db, user):
-    from filenergy.services import webauthn
-
-    assert webauthn.verify_assertion_stub(user, "nonexistent") is False
 
 
 def test_register_stub_disabled_via_env(monkeypatch, db, user):
@@ -330,11 +329,9 @@ def test_register_stub_disabled_via_env(monkeypatch, db, user):
         webauthn.register_stub(user, label="X")
 
 
-def test_login_with_webauthn_routes_through_2fa(client, db, user):
+def test_login_with_webauthn_routes_through_2fa(client, db, user, passkey):
     """A user with no TOTP but a registered passkey still hits /2fa."""
-    from filenergy.services import webauthn
-
-    webauthn.register_stub(user, label="Key")
+    passkey.enroll(db, user, label="Key")
 
     r = client.post(
         "/user/login/",
@@ -344,11 +341,12 @@ def test_login_with_webauthn_routes_through_2fa(client, db, user):
     assert "/user/2fa" in r.headers["Location"]
 
 
-def test_two_factor_post_accepts_webauthn_credential(client, db, user):
-    """Submitting a credential id at /user/2fa logs the user in."""
-    from filenergy.services import webauthn
-
-    cred = webauthn.register_stub(user, label="Key")
+def test_two_factor_post_rejects_bare_webauthn_credential_id(
+    client, db, user, passkey,
+):
+    """A credential id is public (/2fa/webauthn/begin hands it out); posting
+    it at /user/2fa must not complete the login."""
+    cred = passkey.enroll(db, user, label="Key")
 
     client.post(
         "/user/login/",
@@ -359,8 +357,11 @@ def test_two_factor_post_accepts_webauthn_credential(client, db, user):
         data={"webauthn_credential_id": cred.credential_id},
     )
     assert r.status_code == 302
-    # Landing on / means we logged in successfully.
-    assert "/2fa" not in r.headers["Location"]
+    assert "/user/2fa" in r.headers["Location"]
+    # Still not logged in.
+    r = client.get("/file/list/")
+    assert r.status_code == 302
+    assert "/user/login" in r.headers["Location"]
 
 
 # ---------- CLI hook ------------------------------------------------------

@@ -45,10 +45,9 @@ def _user_has_second_factor(user) -> bool:
     if user.totp_enabled:
         return True
     try:
-        from filenergy.models import WebAuthnCredential
-        return WebAuthnCredential.query.filter_by(
-            user_id=user.id
-        ).first() is not None
+        # Only passkeys that can actually verify (not "stub" rows).
+        from filenergy.services import webauthn
+        return webauthn.has_credential(user)
     except Exception:
         return False
 

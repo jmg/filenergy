@@ -111,9 +111,12 @@ the Anthropic Claude API for answers, and Stripe Checkout for billing.
   succeeds, so a stolen password alone is not enough.
 - **WebAuthn / passkeys** — full FIDO2 ceremony backed by `py_webauthn`:
   `navigator.credentials.create/get` from the browser, challenge stash in
-  Flask session, attestation + assertion verification server-side. Also
-  ships a stub fallback for tests / pre-JS deploys. Multiple keys per
-  user; per-key labels and last-used timestamps in security settings.
+  Flask session, attestation + assertion verification server-side
+  (origin, RP ID, signature, sign counter). There is no keyless fallback:
+  a passkey only enrols and only passes 2FA through the real ceremony.
+  Set `FILENERGY_RP_ID` (and `FILENERGY_RP_ORIGIN` if it isn't
+  `https://<rp id>`) to the public host. Multiple keys per user; per-key
+  labels and last-used timestamps in security settings.
 - **Workspace-wide 2FA enforcement** — owners can flip "Require 2FA"; any
   member without TOTP or a passkey is bounced to /settings/security on
   the next request until they enroll.
@@ -363,6 +366,11 @@ its native cursor primitive:
 
 - `ApiKey.scopes` (e.g. `["files:read", "ask:write"]`) restricts which
   endpoints a key can hit. Empty = full access (back-compat).
+- A key never outranks its owner: it stops working when the owner leaves
+  the workspace (removing a member also revokes their keys), and
+  `members:write` / `events:read` need the owner to be an admin or owner
+  *now*. Plain members can't mint keys with those scopes, and nobody can
+  invite into a role above their own.
 - The `/settings/keys` mint form has checkboxes for every recognised
   scope. `files:write` implies `files:read`.
 

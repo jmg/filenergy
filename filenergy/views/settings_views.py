@@ -47,9 +47,12 @@ def update_profile():
 @settings_bp.route("/keys")
 @login_required
 def keys():
+    my_role = workspaces.role_of(g.workspace, g.user)
     return render_template(
         "settings/api_keys.html",
         keys=api_keys.list_for_workspace(g.workspace),
+        my_role=my_role,
+        allowed_scopes=api_keys.scopes_for_role(my_role),
     )
 
 
@@ -58,9 +61,13 @@ def keys():
 def create_key():
     name = request.form.get("name", "").strip() or "Untitled"
     scopes = request.form.getlist("scopes")
-    record, plaintext = api_keys.mint(
-        g.workspace, g.user, name, scopes=scopes,
-    )
+    try:
+        record, plaintext = api_keys.mint(
+            g.workspace, g.user, name, scopes=scopes,
+        )
+    except api_keys.ScopeNotAllowed as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("settings.keys"))
     events.log_event(
         events.API_KEY_CREATED,
         user=g.user, workspace_id=g.workspace.id, key_id=record.id, name=name,
@@ -76,7 +83,7 @@ def create_key():
 @settings_bp.route("/keys/<int:key_id>/revoke", methods=["POST"])
 @login_required
 def revoke_key(key_id):
-    if api_keys.revoke(g.workspace, key_id):
+    if api_keys.revoke(g.workspace, key_id, by=g.user):
         events.log_event(
             events.API_KEY_REVOKED,
             user=g.user, workspace_id=g.workspace.id, key_id=key_id,
@@ -129,16 +136,14 @@ def security():
 @settings_bp.route("/security/webauthn", methods=["POST"])
 @login_required
 def webauthn_register():
-    label = (request.form.get("label") or "").strip() or "Security key"
-    try:
-        cred = webauthn.register_stub(g.user, label=label)
-    except webauthn.WebAuthnError as exc:
-        flash(str(exc), "error")
-        return redirect(url_for("settings.security"))
-    events.log_event(
-        events.WEBAUTHN_REGISTERED, user=g.user, credential_id=cred.id,
+    """No-JS fallback of the passkey form. It used to record a "stub"
+    credential with no key behind it; a passkey is only enrolled through
+    the real ceremony (/security/webauthn/begin + /complete)."""
+    flash(
+        "Registering a passkey needs a browser with WebAuthn support "
+        "and JavaScript enabled.",
+        "error",
     )
-    flash("Passkey registered.", "success")
     return redirect(url_for("settings.security"))
 
 

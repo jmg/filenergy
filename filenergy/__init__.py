@@ -32,6 +32,15 @@ migrate = Migrate(app, db)
 if not os.environ.get("FILENERGY_SKIP_CREATE_ALL"):
     with app.app_context():
         db.create_all()
+        # Files saved with the old guessable handle (sha256 of the id)
+        # get a random one. Never blocks startup.
+        try:
+            from filenergy.services.file import rotate_legacy_urls
+            rotate_legacy_urls()
+        except Exception:
+            db.session.rollback()
+            import logging
+            logging.getLogger(__name__).exception("rotate_legacy_urls failed")
 
 
 # Expose presence of the compiled Tailwind bundle to every template. When

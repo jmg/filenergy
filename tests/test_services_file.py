@@ -55,7 +55,10 @@ def test_save_file_indexes_text_file(db, user, workspace, app):
     assert f.text_content == "hello world"
     assert f.indexed_at is not None
     assert f.workspace_id == workspace.id
-    assert f.url and len(f.url) == 64
+    # Random handle, not the old (guessable) sha256 of the id.
+    import hashlib
+    assert f.url and len(f.url) == 43
+    assert f.url != hashlib.sha256(str(f.id).encode()).hexdigest()
     assert Chunk.query.filter_by(file_id=f.id).count() >= 1
 
 

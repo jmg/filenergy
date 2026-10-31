@@ -3,7 +3,8 @@
 Auth: `Authorization: Bearer <fk_...>` or `X-API-Key: <fk_...>`. Keys
 mint at `/settings/keys`; pass scopes to restrict what the bearer can
 do (`files:read`, `ask:write`, etc.). An empty-scope key has full
-access (back-compat).
+access (back-compat), always capped by the owner's current role in the
+workspace (see `api_keys.allows`).
 """
 from dataclasses import asdict
 from functools import wraps
@@ -43,7 +44,7 @@ def token_required(*scopes: str):
             if record is None:
                 return jsonify(error="Invalid API key"), 401
             for scope in scopes:
-                if not record.has_scope(scope):
+                if not api_keys.allows(record, scope):
                     return jsonify(error=f"Missing scope: {scope}"), 403
             g.api_key = record
             g.user = record.user
@@ -400,7 +401,10 @@ def create_invitation():
     role = (payload.get("role") or "member")
     if not email:
         return jsonify(error="Missing 'email'"), 400
-    inv = workspaces.invite(g.workspace, g.user, email, role)
+    try:
+        inv = workspaces.invite(g.workspace, g.user, email, role)
+    except workspaces.InvitationNotAllowed as exc:
+        return jsonify(error=str(exc)), 403
     return jsonify(id=inv.id, token=inv.token, role=inv.role)
 
 

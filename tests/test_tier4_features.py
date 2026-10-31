@@ -32,17 +32,19 @@ def test_webauthn_begin_registration_persists_challenge_in_session(client, user)
         assert webauthn._REG_CHALLENGE_KEY in s
 
 
-def test_webauthn_begin_authentication_lists_credentials(app, db, user):
+def test_webauthn_begin_authentication_lists_credentials(app, db, user, passkey):
     from filenergy.services import webauthn
 
-    cred = webauthn.register_stub(user, label="Key")
+    cred = passkey.enroll(db, user, label="Key")
+    stub = webauthn.register_stub(user, label="Stub")
     with app.test_request_context():
         options = webauthn.begin_authentication(user)
         assert options["challenge"]
         assert options["allowCredentials"]
-        # The stub credential id appears in allowCredentials.
         ids = [c["id"] for c in options["allowCredentials"]]
         assert cred.credential_id in ids
+        # Stub rows can't sign, so they aren't offered.
+        assert stub.credential_id not in ids
 
 
 def test_webauthn_complete_registration_rejects_without_challenge(app, user):
@@ -68,12 +70,12 @@ def test_two_factor_webauthn_endpoints_need_pending_login(client):
 
 
 def test_two_factor_webauthn_complete_rejects_when_assertion_fails(
-    monkeypatch, client, db, user,
+    monkeypatch, client, db, user, passkey,
 ):
     """Bad assertion → 400, no login."""
     from filenergy.services import webauthn
 
-    webauthn.register_stub(user, label="Key")
+    passkey.enroll(db, user, label="Key")
     client.post(
         "/user/login/",
         data={"email": user.email, "password": "password"},
@@ -88,12 +90,12 @@ def test_two_factor_webauthn_complete_rejects_when_assertion_fails(
 
 
 def test_two_factor_webauthn_complete_logs_in_on_success(
-    monkeypatch, client, db, user,
+    monkeypatch, client, db, user, passkey,
 ):
     """Successful assertion finalises the login."""
     from filenergy.services import webauthn
 
-    webauthn.register_stub(user, label="Key")
+    passkey.enroll(db, user, label="Key")
     client.post(
         "/user/login/",
         data={"email": user.email, "password": "password"},
@@ -114,12 +116,12 @@ def test_two_factor_webauthn_complete_logs_in_on_success(
 
 
 def test_two_factor_webauthn_complete_handles_library_error(
-    monkeypatch, client, db, user,
+    monkeypatch, client, db, user, passkey,
 ):
     """If py_webauthn raises, return 400 with the message."""
     from filenergy.services import webauthn
 
-    webauthn.register_stub(user, label="Key")
+    passkey.enroll(db, user, label="Key")
     client.post(
         "/user/login/",
         data={"email": user.email, "password": "password"},
@@ -137,14 +139,14 @@ def test_two_factor_webauthn_complete_handles_library_error(
 
 
 def test_two_factor_webauthn_begin_propagates_library_error(
-    monkeypatch, client, db, user,
+    monkeypatch, client, db, user, passkey,
 ):
     """If begin_authentication raises, /2fa/webauthn/begin returns 400."""
     from filenergy.services import webauthn
     from filenergy.views.user import PENDING_2FA_KEY
 
     # Force the user into the pending-2FA state.
-    webauthn.register_stub(user, label="Key")
+    passkey.enroll(db, user, label="Key")
     client.post(
         "/user/login/",
         data={"email": user.email, "password": "password"},
@@ -240,11 +242,9 @@ def test_settings_webauthn_begin_returns_400_on_error(monkeypatch, client, user)
     assert "disabled" in r.get_json()["error"]
 
 
-def test_two_factor_webauthn_begin_after_password(client, db, user):
+def test_two_factor_webauthn_begin_after_password(client, db, user, passkey):
     """Once the password step is past, begin emits FIDO2 options."""
-    from filenergy.services import webauthn
-
-    webauthn.register_stub(user, label="Key")
+    passkey.enroll(db, user, label="Key")
     client.post(
         "/user/login/",
         data={"email": user.email, "password": "password"},

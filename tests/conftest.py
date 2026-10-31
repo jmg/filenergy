@@ -231,3 +231,97 @@ def uploaded_file(auth_client, db, user, workspace):
     from filenergy.models import File
 
     return File.query.filter_by(workspace_id=workspace.id).first()
+
+
+# ---------- WebAuthn: software authenticator ----------
+
+def _b64url(b: bytes) -> str:
+    import base64
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
+
+
+class SoftPasskey:
+    """A P-256 software authenticator. `enroll` stores its public key the way
+    the real registration ceremony does; `assertion` signs a genuine
+    WebAuthn assertion that py_webauthn verifies like a browser's."""
+
+    def __init__(self):
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        self._key = ec.generate_private_key(ec.SECP256R1())
+        self.credential_id = _b64url(os.urandom(32))
+        self.sign_count = 0
+
+    def cose_public_key(self) -> bytes:
+        import cbor2
+
+        nums = self._key.public_key().public_numbers()
+        return cbor2.dumps({
+            1: 2,    # kty: EC2
+            3: -7,   # alg: ES256
+            -1: 1,   # crv: P-256
+            -2: nums.x.to_bytes(32, "big"),
+            -3: nums.y.to_bytes(32, "big"),
+        })
+
+    def enroll(self, db, user, label="Key"):
+        from filenergy.models import WebAuthnCredential
+
+        cred = WebAuthnCredential(
+            user_id=user.id,
+            credential_id=self.credential_id,
+            public_key=_b64url(self.cose_public_key()),
+            sign_count=0,
+            label=label,
+        )
+        db.session.add(cred)
+        db.session.commit()
+        return cred
+
+    def assertion(self, challenge: str, *, rp_id="localhost",
+                  origin="http://localhost:5000", sign_count=None) -> dict:
+        import hashlib
+        import json as _json
+
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        self.sign_count = (
+            self.sign_count + 1 if sign_count is None else sign_count
+        )
+        auth_data = (
+            hashlib.sha256(rp_id.encode()).digest()
+            + bytes([0x01])  # user present
+            + self.sign_count.to_bytes(4, "big")
+        )
+        client_data = _json.dumps({
+            "type": "webauthn.get",
+            "challenge": challenge,
+            "origin": origin,
+            "crossOrigin": False,
+        }).encode()
+        signature = self._key.sign(
+            auth_data + hashlib.sha256(client_data).digest(),
+            ec.ECDSA(hashes.SHA256()),
+        )
+        return {
+            "id": self.credential_id,
+            "rawId": self.credential_id,
+            "type": "public-key",
+            "response": {
+                "clientDataJSON": _b64url(client_data),
+                "authenticatorData": _b64url(auth_data),
+                "signature": _b64url(signature),
+                "userHandle": None,
+            },
+        }
+
+
+@pytest.fixture
+def passkey(monkeypatch):
+    """A fresh software authenticator; RP settings pinned to the defaults
+    it signs for."""
+    monkeypatch.delenv("FILENERGY_RP_ID", raising=False)
+    monkeypatch.delenv("FILENERGY_RP_ORIGIN", raising=False)
+    monkeypatch.delenv("FILENERGY_WEBAUTHN_DISABLED", raising=False)
+    return SoftPasskey()
